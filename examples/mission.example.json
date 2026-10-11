@@ -1,9 +1,9 @@
 {
-  "name": "自定义单机任务",
+  "name": "Custom single-drone mission",
   "drones": [
     {
       "id": "uav-demo",
-      "name": "演示航线",
+      "name": "Demo route",
       "color": "#00d4ff",
       "speed": 14,
       "route": [

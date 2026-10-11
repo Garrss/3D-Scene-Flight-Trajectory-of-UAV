@@ -9,8 +9,8 @@ interface Props {
 }
 
 const projects = [
-  { id: 'flight' as const, label: '飞行轨迹', shortLabel: '飞行', icon: Plane },
-  { id: 'digital-twin' as const, label: '数字孪生', shortLabel: '孪生', icon: Building2 },
+  { id: 'flight' as const, label: 'Flight Trajectory', shortLabel: 'Flight', icon: Plane },
+  { id: 'digital-twin' as const, label: 'Digital Twin', shortLabel: 'Twin', icon: Building2 },
 ]
 
 export default function PlatformShell({ activeProject, onSelectProject, children }: Props) {
@@ -18,8 +18,8 @@ export default function PlatformShell({ activeProject, onSelectProject, children
 
   return (
     <main className="platform-shell">
-      <aside className="platform-rail" aria-label="项目导航">
-        <div className="platform-brand" aria-label="TwinSpace 多项目平台">
+      <aside className="platform-rail" aria-label="Project navigation">
+        <div className="platform-brand" aria-label="TwinSpace multi-project platform">
           <span className="platform-brand__mark"><Boxes size={20} strokeWidth={1.8} /></span>
           <span className="platform-brand__name">Twin<br />Space</span>
         </div>
@@ -43,7 +43,7 @@ export default function PlatformShell({ activeProject, onSelectProject, children
           ))}
         </nav>
 
-        <div className="platform-rail__status" title="平台服务正常">
+        <div className="platform-rail__status" title="Platform service operational">
           <Radio size={15} />
           <span>ONLINE</span>
         </div>
@@ -53,7 +53,7 @@ export default function PlatformShell({ activeProject, onSelectProject, children
         <header className="platform-context">
           <span className="platform-context__eyebrow">PROJECT / 0{projects.indexOf(active) + 1}</span>
           <strong>{active.label}</strong>
-          <span className="platform-context__status"><i />运行中</span>
+          <span className="platform-context__status"><i />Running</span>
         </header>
         {children}
       </section>

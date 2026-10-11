@@ -17,6 +17,7 @@
 - 桌面/移动 Playwright 场景、像素和防重叠回归测试。
 - Dockerfile、Docker Compose、GitHub Actions 和 Dependabot。
 - 架构、API、配置、扩展、贡献、安全和第三方资源文档。
+- 成对接近预警任务示例：`examples/mission.collision.json`、`mission.collision-short.json` 和两机共用约 250 m 航段往返循环的 `mission.collision-loop.json`。
 
 ### Changed
 

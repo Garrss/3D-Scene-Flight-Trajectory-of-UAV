@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/lien0219/3D-Scene-Flight-Trajectory-of-UAV/api/collision"
 	"github.com/lien0219/3D-Scene-Flight-Trajectory-of-UAV/api/config"
 	"github.com/lien0219/3D-Scene-Flight-Trajectory-of-UAV/api/handler"
 	"github.com/lien0219/3D-Scene-Flight-Trajectory-of-UAV/api/router"
@@ -26,7 +27,13 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	hub := handler.NewHub(mission, runtimeConfig.TickInterval, runtimeConfig.AllowedOrigins)
+	hub := handler.NewHub(mission, runtimeConfig.TickInterval, runtimeConfig.AllowedOrigins, collision.Config{
+		WarnM:     runtimeConfig.CollisionWarnM,
+		CriticalM: runtimeConfig.CollisionCriticalM,
+		ClearM:    runtimeConfig.CollisionClearM,
+		HorizonS:  runtimeConfig.CollisionHorizonS,
+		EvadeAltM: runtimeConfig.CollisionEvadeAltM,
+	})
 	hub.StartBroadcast(ctx)
 
 	server := &http.Server{

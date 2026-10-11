@@ -1,0 +1,25 @@
+{
+  "name": "Collision warning demo (simulated)",
+  "drones": [
+    {
+      "id": "uav-east",
+      "name": "Eastbound",
+      "color": "#00d4ff",
+      "speed": 15,
+      "route": [
+        { "lng": 113.93, "lat": 22.53, "alt": 150 },
+        { "lng": 113.96, "lat": 22.53, "alt": 150 }
+      ]
+    },
+    {
+      "id": "uav-west",
+      "name": "Westbound",
+      "color": "#ff6b35",
+      "speed": 15,
+      "route": [
+        { "lng": 113.96, "lat": 22.53, "alt": 150 },
+        { "lng": 113.93, "lat": 22.53, "alt": 150 }
+      ]
+    }
+  ]
+}

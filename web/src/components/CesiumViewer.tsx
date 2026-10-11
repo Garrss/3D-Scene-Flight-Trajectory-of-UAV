@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
+import { useRef, useEffect, useCallback, useState, useMemo, memo } from 'react'
 import { Viewer, Entity, PolylineGraphics, ImageryLayer } from 'resium'
 import {
   Cartesian3,
@@ -15,11 +15,12 @@ import {
   UrlTemplateImageryProvider,
   SceneMode,
   CallbackProperty,
+  Quaternion,
   Credit,
   CreditDisplay,
   buildModuleUrl,
 } from 'cesium'
-import type { DroneState, DroneFleet, Mission } from '../types/drone'
+import type { CollisionAlert, DroneFleet, Mission } from '../types/drone'
 import { DroneInterpolator, lerpAngleRad } from '../lib/DroneInterpolator'
 
 import droneModelUrl from '../assets/uav.gltf?url'
@@ -34,31 +35,32 @@ const gaodeSatellite = new UrlTemplateImageryProvider({
   url: 'https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
   subdomains: ['1', '2', '3', '4'],
   maximumLevel: 18,
-  credit: '地图影像 © 高德地图',
+  credit: 'Imagery Â© Amap (AutoNavi)',
 })
+
 const flatTerrain = new EllipsoidTerrainProvider()
 
-// ======= 地标 =======
+// ======= Landmarks =======
 const LANDMARKS: { name: string; lng: number; lat: number; type: 'district' | 'road' | 'poi' }[] = [
-  { name: '南山区', lng: 113.930, lat: 22.533, type: 'district' },
-  { name: '福田区', lng: 114.055, lat: 22.527, type: 'district' },
-  { name: '罗湖区', lng: 114.131, lat: 22.548, type: 'district' },
-  { name: '宝安区', lng: 113.883, lat: 22.555, type: 'district' },
-  { name: '深圳湾公园', lng: 113.942, lat: 22.515, type: 'poi' },
-  { name: '深圳湾大桥', lng: 113.965, lat: 22.498, type: 'poi' },
-  { name: '华侨城', lng: 114.004, lat: 22.535, type: 'poi' },
-  { name: '市民中心', lng: 114.054, lat: 22.543, type: 'poi' },
-  { name: '莲花山公园', lng: 114.058, lat: 22.556, type: 'poi' },
-  { name: '会展中心', lng: 114.061, lat: 22.529, type: 'poi' },
-  { name: '深圳北站', lng: 114.029, lat: 22.609, type: 'poi' },
-  { name: '罗湖口岸', lng: 114.113, lat: 22.543, type: 'poi' },
-  { name: '蛇口港', lng: 113.899, lat: 22.477, type: 'poi' },
-  { name: '世界之窗', lng: 113.974, lat: 22.535, type: 'poi' },
-  { name: '深圳大学', lng: 113.935, lat: 22.530, type: 'poi' },
-  { name: '深南大道', lng: 114.020, lat: 22.532, type: 'road' },
-  { name: '滨海大道', lng: 113.970, lat: 22.510, type: 'road' },
-  { name: '北环大道', lng: 114.050, lat: 22.568, type: 'road' },
-  { name: '沿河路', lng: 114.100, lat: 22.540, type: 'road' },
+  { name: 'Nanshan District', lng: 113.930, lat: 22.533, type: 'district' },
+  { name: 'Futian District', lng: 114.055, lat: 22.527, type: 'district' },
+  { name: 'Luohu District', lng: 114.131, lat: 22.548, type: 'district' },
+  { name: "Bao'an District", lng: 113.883, lat: 22.555, type: 'district' },
+  { name: 'Shenzhen Bay Park', lng: 113.942, lat: 22.515, type: 'poi' },
+  { name: 'Shenzhen Bay Bridge', lng: 113.965, lat: 22.498, type: 'poi' },
+  { name: 'Overseas Chinese Town', lng: 114.004, lat: 22.535, type: 'poi' },
+  { name: 'Civic Center', lng: 114.054, lat: 22.543, type: 'poi' },
+  { name: 'Lianhuashan Park', lng: 114.058, lat: 22.556, type: 'poi' },
+  { name: 'Convention & Exhibition Center', lng: 114.061, lat: 22.529, type: 'poi' },
+  { name: 'Shenzhen North Station', lng: 114.029, lat: 22.609, type: 'poi' },
+  { name: 'Luohu Port', lng: 114.113, lat: 22.543, type: 'poi' },
+  { name: 'Shekou Port', lng: 113.899, lat: 22.477, type: 'poi' },
+  { name: 'Window of the World', lng: 113.974, lat: 22.535, type: 'poi' },
+  { name: 'Shenzhen University', lng: 113.935, lat: 22.530, type: 'poi' },
+  { name: 'Shennan Avenue', lng: 114.020, lat: 22.532, type: 'road' },
+  { name: 'Binhai Boulevard', lng: 113.970, lat: 22.510, type: 'road' },
+  { name: 'Beihuan Road', lng: 114.050, lat: 22.568, type: 'road' },
+  { name: 'Yanhe Road', lng: 114.100, lat: 22.540, type: 'road' },
 ]
 
 const LANDMARK_STYLES = {
@@ -94,12 +96,12 @@ const LANDMARK_STYLES = {
 const landmarkEntities = LANDMARKS.map((lm) => ({
   position: Cartesian3.fromDegrees(lm.lng, lm.lat, 5),
   label: {
-    text: new ConstantProperty(lm.type === 'road' ? `── ${lm.name} ──` : lm.name),
+    text: new ConstantProperty(lm.type === 'road' ? `â”€â”€ ${lm.name} â”€â”€` : lm.name),
     ...LANDMARK_STYLES[lm.type],
   },
 }))
 
-// 航点样式
+// Waypoint styles
 const WP_POINT = {
   pixelSize: new ConstantProperty(6),
   color: new ConstantProperty(Color.YELLOW),
@@ -118,7 +120,7 @@ const WP_LABEL_BASE = {
   disableDepthTestDistance: new ConstantProperty(Number.POSITIVE_INFINITY),
 }
 
-// ======= 无人机模型配置 =======
+// ======= Drone model config =======
 const DRONE_MODEL_URI = new ConstantProperty(droneModelUrl)
 const DRONE_SCALE = new ConstantProperty(1.5)
 const DRONE_MIN_PX = new ConstantProperty(88)
@@ -145,9 +147,10 @@ interface Props {
   selectedId: string
   onSelectDrone: (id: string) => void
   mission: Mission | null
+  alerts?: CollisionAlert[]
 }
 
-// 天气
+// Weather
 const WEATHER_OVERLAY: Record<WeatherMode, React.CSSProperties> = {
   clear: { display: 'none' },
   foggy: {
@@ -160,65 +163,79 @@ const WEATHER_OVERLAY: Record<WeatherMode, React.CSSProperties> = {
   },
 }
 
-function DroneEntity({
+// Memoized: props are stable across 5Hz telemetry ticks (position flows via
+// the interpolator + CallbackProperty, not via props). onSelectDrone is the
+// stable parent setter, so shallow comparison is sufficient.
+const DroneEntity = memo(function DroneEntity({
   droneId,
   interpolator,
   isSelected,
-  onSelect,
+  onSelectDrone,
   color,
+  alertLevel,
+  evading,
 }: {
   droneId: string
   interpolator: DroneInterpolator
   isSelected: boolean
-  onSelect: () => void
+  onSelectDrone: (id: string) => void
   color: Color
+  alertLevel: 'none' | 'warning' | 'critical'
+  evading: boolean
 }) {
-  const positionProp = useMemo(
-    () => new CallbackProperty(() => {
+  const positionProp = useMemo(() => {
+    // Scratch object reused every frame: avoids one Cartesian3 allocation
+    // per drone per rendered frame (CallbackProperty with isConstant=false
+    // is evaluated on every render).
+    const scratch = new Cartesian3()
+    return new CallbackProperty((_time: unknown, result: unknown) => {
+      const target = (result as Cartesian3 | undefined) ?? scratch
       const c = interpolator.get(droneId)
-      if (!c) return Cartesian3.fromDegrees(0, 0, 0)
-      return Cartesian3.fromDegrees(c.lng, c.lat, c.alt)
-    }, false),
-    [droneId, interpolator]
-  )
+      if (!c) return Cartesian3.fromDegrees(0, 0, 0, undefined, target)
+      return Cartesian3.fromDegrees(c.lng, c.lat, c.alt, undefined, target)
+    }, false)
+  }, [droneId, interpolator])
 
-  const orientationProp = useMemo(
-    () => new CallbackProperty(() => {
+  const orientationProp = useMemo(() => {
+    const pos = new Cartesian3()
+    const hpr = new HeadingPitchRoll(0, 0, 0)
+    const quat = new Quaternion()
+    return new CallbackProperty((_time: unknown, result: unknown) => {
+      const target = (result as Quaternion | undefined) ?? quat
       const c = interpolator.get(droneId)
-      if (!c) return Transforms.headingPitchRollQuaternion(
-        Cartesian3.fromDegrees(0, 0, 0),
-        new HeadingPitchRoll(0, 0, 0)
-      )
-      const pos = Cartesian3.fromDegrees(c.lng, c.lat, c.alt)
-      return Transforms.headingPitchRollQuaternion(
-        pos,
-        new HeadingPitchRoll(
-          CesiumMath.toRadians(c.heading),
-          CesiumMath.toRadians(c.pitch),
-          CesiumMath.toRadians(c.roll)
-        )
-      )
-    }, false),
-    [droneId, interpolator]
-  )
+      if (!c) {
+        hpr.heading = 0
+        hpr.pitch = 0
+        hpr.roll = 0
+        Cartesian3.fromDegrees(0, 0, 0, undefined, pos)
+        return Transforms.headingPitchRollQuaternion(pos, hpr, undefined, undefined, target)
+      }
+      hpr.heading = CesiumMath.toRadians(c.heading)
+      hpr.pitch = CesiumMath.toRadians(c.pitch)
+      hpr.roll = CesiumMath.toRadians(c.roll)
+      Cartesian3.fromDegrees(c.lng, c.lat, c.alt, undefined, pos)
+      return Transforms.headingPitchRollQuaternion(pos, hpr, undefined, undefined, target)
+    }, false)
+  }, [droneId, interpolator])
 
   const droneColor = color
+  const alertColor = alertLevel === 'critical' ? Color.RED : alertLevel === 'warning' ? Color.YELLOW : null
 
   const model = useMemo(() => ({
     uri: DRONE_MODEL_URI,
     scale: DRONE_SCALE,
     minimumPixelSize: DRONE_MIN_PX,
     maximumScale: DRONE_MAX_SCALE,
-    silhouetteColor: new ConstantProperty(isSelected ? Color.WHITE : droneColor),
-    silhouetteSize: new ConstantProperty(isSelected ? 3 : 1.5),
+    silhouetteColor: new ConstantProperty(alertColor ?? (isSelected ? Color.WHITE : droneColor)),
+    silhouetteSize: new ConstantProperty(alertColor ? 3.5 : isSelected ? 3 : 1.5),
     color: new ConstantProperty(Color.WHITE),
-  }), [droneId, isSelected, droneColor])
+  }), [droneId, isSelected, droneColor, alertColor])
 
   const label = useMemo(() => ({
-    text: new ConstantProperty(droneId.toUpperCase()),
-    fillColor: new ConstantProperty(isSelected ? Color.WHITE : droneColor),
+    text: new ConstantProperty(evading ? `${droneId.toUpperCase()} EVADING` : droneId.toUpperCase()),
+    fillColor: new ConstantProperty(alertColor ?? (isSelected ? Color.WHITE : droneColor)),
     ...DRONE_LABEL_BASE,
-  }), [droneId, isSelected, droneColor])
+  }), [droneId, isSelected, droneColor, alertColor, evading])
 
   return (
     <Entity
@@ -226,18 +243,18 @@ function DroneEntity({
       orientation={orientationProp as any}
       model={model}
       label={label}
-      onClick={onSelect}
+      onClick={() => onSelectDrone(droneId)}
     />
   )
-}
+})
 
-export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone, mission }: Props) {
+export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone, mission, alerts = [] }: Props) {
   const viewerRef = useRef<CesiumViewer | null>(null)
   const [followMode, setFollowMode] = useState<FollowMode>('chase')
   const [weather, setWeather] = useState<WeatherMode>('clear')
   const [sceneMode, setSceneMode] = useState<SceneModeType>('3d')
 
-  // 插值器
+  // Interpolator
   const interpolator = useRef(new DroneInterpolator()).current
 
   const cameraSmooth = useRef({ lng: 114.05, lat: 22.53, alt: 270, heading: 0 })
@@ -266,6 +283,65 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
     routeData.map((route) => [route.id, route.color]),
   ), [routeData])
 
+  // Simulated proximity state per drone for highlighting.
+  const alertLevelByDrone = useMemo(() => {
+    const levels = new Map<string, 'warning' | 'critical'>()
+    for (const alert of alerts) {
+      for (const id of [alert.droneA, alert.droneB]) {
+        const prev = levels.get(id)
+        if (alert.severity === 'critical' || prev !== 'critical') {
+          levels.set(id, alert.severity)
+        }
+      }
+    }
+    return levels
+  }, [alerts])
+
+  const evadingDrones = useMemo(() => {
+    const set = new Set<string>()
+    for (const id of droneIds) {
+      if (fleet[id]?.avoidanceActive) set.add(id)
+    }
+    for (const alert of alerts) {
+      if (alert.evading) {
+        set.add(alert.droneA)
+        set.add(alert.droneB)
+      }
+    }
+    return set
+  }, [alerts, fleet, droneIds])
+
+  // Warning lines between conflicting pairs. Endpoint coordinates are
+  // quantized to ~1m and cached, so the Cesium polyline is only rebuilt on
+  // real movement â€” not on every 5Hz telemetry tick (which would remount
+  // PolylineGraphics and its Cartesian3 arrays each time).
+  const alertLineCache = useRef(new Map<string, { key: string; positions: Cartesian3[] }>())
+  const alertLines = useMemo(() => {
+    const cache = alertLineCache.current
+    const quantizeDeg = (n: number) => Math.round(n * 1e5) / 1e5
+    const quantizeAlt = (n: number) => Math.round(n)
+    const seen = new Set<string>()
+    const lines = alerts.flatMap((alert) => {
+      const a = fleet[alert.droneA]
+      const b = fleet[alert.droneB]
+      if (!a || !b) return []
+      const key = `${alert.severity}|${quantizeDeg(a.lng)}|${quantizeDeg(a.lat)}|${quantizeAlt(a.alt)}|` +
+        `${quantizeDeg(b.lng)}|${quantizeDeg(b.lat)}|${quantizeAlt(b.alt)}`
+      seen.add(alert.id)
+      const hit = cache.get(alert.id)
+      if (hit && hit.key === key) {
+        return [{ id: alert.id, severity: alert.severity, positions: hit.positions }]
+      }
+      const positions = Cartesian3.fromDegreesArrayHeights([a.lng, a.lat, a.alt, b.lng, b.lat, b.alt])
+      cache.set(alert.id, { key, positions })
+      return [{ id: alert.id, severity: alert.severity, positions }]
+    })
+    for (const id of [...cache.keys()]) {
+      if (!seen.has(id)) cache.delete(id)
+    }
+    return lines
+  }, [alerts, fleet])
+
   followModeRef.current = followMode
   sceneModeRef.current = sceneMode
   selectedIdRef.current = selectedId
@@ -277,23 +353,27 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
     }
   }, [fleet, droneIds, interpolator])
 
-  // ===== 动画主循环 =====
+  // ===== Main animation loop (interpolation keeps frame-rate precision, rendering capped at 30fps) =====
   useEffect(() => {
     let rafId: number
     let lastTime = performance.now()
+    let lastRender = 0
+    const camDest = new Cartesian3()
+    const lastCam = { lng: NaN, lat: NaN, alt: NaN, heading: NaN, pitch: NaN }
 
     const animate = (now: number) => {
       rafId = requestAnimationFrame(animate)
       const dt = Math.min((now - lastTime) / 1000, 0.05)
       lastTime = now
 
-      // 所有无人机平滑插值
+      // Smooth interpolation for every drone (plain JS, cheap, keeps full frame-rate accuracy)
       interpolator.tick(dt)
 
-      // 相机跟随选中无人机
+      // Camera follows the selected drone
       const viewer = viewerRef.current
       const selId = selectedIdRef.current
       const cur = selId ? interpolator.get(selId) : undefined
+      let cameraChanged = false
 
       if (viewer && cur && followModeRef.current !== 'free') {
         const fm = followModeRef.current
@@ -321,13 +401,36 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
         cam.heading = lerpAngleRad(cam.heading, headingRad, camT)
 
         const pitchDeg = sm === '2d' ? -90 : (fm === 'chase' ? -25 : -80)
-        viewer.camera.setView({
-          destination: Cartesian3.fromDegrees(cam.lng, cam.lat, cam.alt),
-          orientation: { heading: cam.heading, pitch: CesiumMath.toRadians(pitchDeg), roll: 0 },
-        })
+        // Skip setView when the position moved less than ~1cm or the attitude changed
+        // by less than ~0.001 deg, avoiding pointless camera updates that would force
+        // a full redraw and tile re-evaluation.
+        if (
+          Math.abs(cam.lng - lastCam.lng) > 1e-7 ||
+          Math.abs(cam.lat - lastCam.lat) > 1e-7 ||
+          Math.abs(cam.alt - lastCam.alt) > 0.01 ||
+          Math.abs(cam.heading - lastCam.heading) > 1e-5 ||
+          pitchDeg !== lastCam.pitch
+        ) {
+          Cartesian3.fromDegrees(cam.lng, cam.lat, cam.alt, undefined, camDest)
+          viewer.camera.setView({
+            destination: camDest,
+            orientation: { heading: cam.heading, pitch: CesiumMath.toRadians(pitchDeg), roll: 0 },
+          })
+          lastCam.lng = cam.lng
+          lastCam.lat = cam.lat
+          lastCam.alt = cam.alt
+          lastCam.heading = cam.heading
+          lastCam.pitch = pitchDeg
+          cameraChanged = true
+        }
       }
 
-      if (viewer) viewer.scene.requestRender()
+      // Telemetry arrives at 5Hz while flight is continuous: 30fps is enough to smooth
+      // a 15m/s target and halves the render work (CallbackProperty evaluation and tile/label drawing).
+      if (viewer && (cameraChanged || now - lastRender >= 33)) {
+        viewer.scene.requestRender()
+        lastRender = now
+      }
     }
 
     rafId = requestAnimationFrame(animate)
@@ -345,7 +448,7 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
     }
   }, [sceneMode])
 
-  // ===== 天气 =====
+  // ===== Weather =====
   useEffect(() => {
     const v = viewerRef.current
     if (!v) return
@@ -384,7 +487,7 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
     scene.requestRender()
   }, [weather])
 
-  // ===== 初始化 =====
+  // ===== Initialization =====
   const handleViewerReady = useCallback((viewer: CesiumViewer) => {
     viewerRef.current = viewer
     const scene = viewer.scene
@@ -434,7 +537,7 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
     <>
       <div style={WEATHER_OVERLAY[weather]} />
 
-      {/* 右侧控制面板 */}
+      {/* Right-hand control panel */}
       <div className="scene-controls">
         <div className="scene-controls__mode" style={{ display: 'flex', gap: 6 }}>
           {(['3d', '2d'] as SceneModeType[]).map((m) => (
@@ -453,8 +556,8 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
 
         <div className="scene-controls__separator" style={{ height: 1, background: '#555', margin: '2px 0' }} />
 
-        {/* 无人机选择 */}
-        <div className="scene-controls__label" style={{ fontSize: 11, color: '#888', fontFamily: 'monospace', textAlign: 'center' }}>无人机选择</div>
+        {/* Drone selection */}
+        <div className="scene-controls__label" style={{ fontSize: 11, color: '#888', fontFamily: 'monospace', textAlign: 'center' }}>Drone selection</div>
         {droneIds.map((id) => {
           const c = droneColors.get(id) ?? DRONE_DEFAULT_COLOR
           const isActive = id === selectedId
@@ -491,11 +594,11 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
 
         <div className="scene-controls__separator" style={{ height: 1, background: '#555', margin: '2px 0' }} />
 
-        {/* 视角 */}
+        {/* Viewpoint */}
         {([
-          ['chase', '🎯 追尾视角'],
-          ['top', '🛰️ 俯瞰视角'],
-          ['free', '🖱️ 自由视角'],
+          ['chase', '🎯 Chase view'],
+          ['top', '🛰️ Top-down view'],
+          ['free', '🖱️ Free view'],
         ] as [FollowMode, string][]).map(([m, l]) => (
           <button className="scene-controls__action" key={m} onClick={() => setFollowMode(m)} style={btnStyle(followMode === m, '0,255,255')}>
             {l}
@@ -504,11 +607,11 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
 
         <div className="scene-controls__separator" style={{ height: 1, background: '#555', margin: '2px 0' }} />
 
-        {/* 天气 */}
+        {/* Weather */}
         {([
-          ['clear', '☀️ 晴天'],
-          ['foggy', '🌫️ 大雾'],
-          ['overcast', '☁️ 阴天'],
+          ['clear', '☀️ Clear'],
+          ['foggy', '🌫️ Foggy'],
+          ['overcast', '☁️ Overcast'],
         ] as [WeatherMode, string][]).map(([m, l]) => (
           <button className="scene-controls__action" key={m} onClick={() => setWeather(m)} style={btnStyle(weather === m, '255,200,0')}>
             {l}
@@ -533,19 +636,19 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
       >
         <ImageryLayer imageryProvider={gaodeSatellite} />
 
-        {/* 地标 */}
+        {/* Landmarks */}
         {landmarkEntities.map((lm, i) => (
           <Entity key={`lm-${i}`} position={lm.position} label={lm.label} />
         ))}
 
-        {/* 所有航线 */}
+        {/* All routes */}
         {routeData.map((rd) => (
           <Entity key={`route-${rd.id}`}>
             <PolylineGraphics positions={rd.positions} width={3} material={rd.material} clampToGround={false} />
           </Entity>
         ))}
 
-        {/* 所有航线航点 */}
+        {/* Route waypoints */}
         {routeData.map((rd) =>
           rd.route.map((_, wi) => (
             <Entity
@@ -563,9 +666,23 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
             droneId={id}
             interpolator={interpolator}
             isSelected={id === selectedId}
-            onSelect={() => onSelectDrone(id)}
+            onSelectDrone={onSelectDrone}
             color={droneColors.get(id) ?? DRONE_DEFAULT_COLOR}
+            alertLevel={alertLevelByDrone.get(id) ?? 'none'}
+            evading={evadingDrones.has(id)}
           />
+        ))}
+
+        {/* Simulated collision warning lines */}
+        {alertLines.map((line) => (
+          <Entity key={`alert-${line.id}`}>
+            <PolylineGraphics
+              positions={line.positions}
+              width={line.severity === 'critical' ? 4 : 2}
+              material={line.severity === 'critical' ? Color.RED.withAlpha(0.9) : Color.YELLOW.withAlpha(0.8)}
+              clampToGround={false}
+            />
+          </Entity>
         ))}
       </Viewer>
     </>

@@ -12,6 +12,20 @@ describe('parseDronePayload', () => {
     expect(parseDronePayload(JSON.stringify([telemetry])).fleet['uav-001']).toEqual(telemetry)
   })
 
+  it('accepts the versioned envelope with alerts', () => {
+    const envelope = {
+      v: 1,
+      drones: [telemetry],
+      alerts: [
+        { id: 'uav-001~uav-002', droneA: 'uav-001', droneB: 'uav-002', distanceM: 80, severity: 'warning', predictedMinM: 40, evading: false, timestamp: 1 },
+      ],
+    }
+    const parsed = parseDronePayload(JSON.stringify(envelope))
+    expect(parsed.ids).toEqual(['uav-001'])
+    expect(parsed.alerts).toHaveLength(1)
+    expect(parsed.alerts[0].severity).toBe('warning')
+  })
+
   it('rejects malformed telemetry', () => {
     expect(() => parseDronePayload('{"droneId":"uav-001"}')).toThrow('invalid telemetry')
     expect(() => parseDronePayload(JSON.stringify([telemetry, telemetry]))).toThrow('duplicate ID')

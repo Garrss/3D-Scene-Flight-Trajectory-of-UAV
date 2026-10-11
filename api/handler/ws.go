@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lien0219/3D-Scene-Flight-Trajectory-of-UAV/api/collision"
 	"github.com/lien0219/3D-Scene-Flight-Trajectory-of-UAV/api/config"
 	"github.com/lien0219/3D-Scene-Flight-Trajectory-of-UAV/api/model"
 	"github.com/lien0219/3D-Scene-Flight-Trajectory-of-UAV/api/simulator"
@@ -22,23 +23,43 @@ type Hub struct {
 	clients        map[*websocket.Conn]struct{}
 	mu             sync.RWMutex
 	simulators     []*simulator.FlightSimulator
+	coordinator    *simulator.Coordinator
+	safetyCfg      collision.Config
 	mission        config.Mission
 	tickInterval   time.Duration
 	allowedOrigins map[string]struct{}
 	origins        []string
 	allowAnyOrigin bool
 	upgrader       websocket.Upgrader
+	// lastAlerts caches the most recent tick's alerts so HTTP handlers
+	// don't re-run O(n^2) detection per poll. Guarded by mu.
+	lastAlerts []model.Alert
 }
 
-func NewHub(mission config.Mission, tickInterval time.Duration, allowedOrigins []string) *Hub {
+// writeTimeout bounds how long a single client can stall the broadcast loop.
+const writeTimeout = 2 * time.Second
+
+// envelopeVersion versions the WS / /api/state payload.
+const envelopeVersion = 1
+
+func NewHub(mission config.Mission, tickInterval time.Duration, allowedOrigins []string, cfgs ...collision.Config) *Hub {
 	sims := make([]*simulator.FlightSimulator, len(mission.Drones))
 	for i, cfg := range mission.Drones {
 		sims[i] = simulator.NewFlightSimulator(cfg, tickInterval)
+	}
+	safety := collision.DefaultConfig()
+	if len(cfgs) > 0 {
+		safety = cfgs[0]
+	}
+	if err := safety.Validate(); err != nil {
+		safety = collision.DefaultConfig()
 	}
 
 	hub := &Hub{
 		clients:        make(map[*websocket.Conn]struct{}),
 		simulators:     sims,
+		coordinator:    simulator.NewCoordinator(safety),
+		safetyCfg:      safety,
 		mission:        mission,
 		tickInterval:   tickInterval,
 		allowedOrigins: make(map[string]struct{}, len(allowedOrigins)),
@@ -63,11 +84,13 @@ func (h *Hub) StartBroadcast(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				states := make([]model.DroneState, len(h.simulators))
-				for i, sim := range h.simulators {
-					states[i] = sim.Tick()
+				env := h.tick()
+				// Simulation always advances, but skip the marshal when
+				// nobody is listening.
+				if h.clientCount() == 0 {
+					continue
 				}
-				data, err := json.Marshal(states)
+				data, err := json.Marshal(env)
 				if err != nil {
 					log.Println("marshal error:", err)
 					continue
@@ -79,6 +102,52 @@ func (h *Hub) StartBroadcast(ctx context.Context) {
 	log.Printf("broadcast started: interval=%s drones=%d", h.tickInterval, len(h.simulators))
 }
 
+// tick advances all simulators, runs simulated avoidance, and returns the
+// versioned envelope. Exported via Snapshot for HTTP handlers and tests.
+func (h *Hub) tick() model.TelemetryEnvelope {
+	states := make([]model.DroneState, len(h.simulators))
+	for i, sim := range h.simulators {
+		states[i] = sim.Tick()
+	}
+	alerts := h.coordinator.Update(h.simulators, states, time.Now())
+	// Re-read states so demo avoidance offsets are visible in this tick.
+	for i, sim := range h.simulators {
+		states[i] = sim.GetState()
+	}
+	if alerts == nil {
+		alerts = []model.Alert{}
+	}
+	h.mu.Lock()
+	h.lastAlerts = alerts
+	h.mu.Unlock()
+	return model.TelemetryEnvelope{Version: envelopeVersion, Drones: states, Alerts: alerts}
+}
+
+// Snapshot returns the current envelope without advancing simulation.
+// Alerts are reused from the last tick instead of re-running detection.
+func (h *Hub) Snapshot() model.TelemetryEnvelope {
+	states := make([]model.DroneState, len(h.simulators))
+	for i, sim := range h.simulators {
+		states[i] = sim.GetState()
+	}
+	h.mu.RLock()
+	alerts := h.lastAlerts
+	h.mu.RUnlock()
+	if alerts == nil {
+		alerts = collision.Detect(states, h.safetyCfg, time.Now())
+	}
+	if alerts == nil {
+		alerts = []model.Alert{}
+	}
+	return model.TelemetryEnvelope{Version: envelopeVersion, Drones: states, Alerts: alerts}
+}
+
+func (h *Hub) clientCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.clients)
+}
+
 func (h *Hub) broadcast(msg []byte) {
 	h.mu.RLock()
 	connections := make([]*websocket.Conn, 0, len(h.clients))
@@ -88,9 +157,12 @@ func (h *Hub) broadcast(msg []byte) {
 	h.mu.RUnlock()
 
 	for _, conn := range connections {
+		// Bound slow clients: without a deadline one stalled browser
+		// head-of-line blocks every other client on this tick.
+		_ = conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 		err := conn.WriteMessage(websocket.TextMessage, msg)
 		if err != nil {
-			log.Println("write error:", err)
+			log.Println("write error (dropping slow client):", err)
 			_ = conn.Close()
 			h.mu.Lock()
 			delete(h.clients, conn)
@@ -128,13 +200,17 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Hub) HandleState(w http.ResponseWriter, r *http.Request) {
-	states := make([]model.DroneState, len(h.simulators))
-	for i, sim := range h.simulators {
-		states[i] = sim.GetState()
-	}
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(states); err != nil {
+	if err := json.NewEncoder(w).Encode(h.Snapshot()); err != nil {
 		log.Println("encode state response:", err)
+	}
+}
+
+// HandleAlerts exposes the current simulated proximity alerts (demo only).
+func (h *Hub) HandleAlerts(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(h.Snapshot().Alerts); err != nil {
+		log.Println("encode alerts response:", err)
 	}
 }
 

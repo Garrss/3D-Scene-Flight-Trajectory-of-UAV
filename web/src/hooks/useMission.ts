@@ -16,7 +16,7 @@ export function useMission() {
         setMission(await response.json() as Mission)
       } catch (cause) {
         if (cause instanceof DOMException && cause.name === 'AbortError') return
-        setError(cause instanceof Error ? cause.message : '未知错误')
+        setError(cause instanceof Error ? cause.message : 'Unknown error')
       }
     }
 

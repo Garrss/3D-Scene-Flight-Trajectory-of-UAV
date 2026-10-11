@@ -11,9 +11,30 @@ export interface DroneState {
   timestamp: number
   status?: string
   waypointIndex?: number
+  /** Simulated demo avoidance flag (visualization only, not flight safety). */
+  avoidanceActive?: boolean
 }
 
 export type DroneFleet = Record<string, DroneState>
+
+export type AlertSeverity = 'warning' | 'critical'
+
+export interface CollisionAlert {
+  id: string
+  droneA: string
+  droneB: string
+  distanceM: number
+  severity: AlertSeverity
+  predictedMinM: number
+  evading: boolean
+  timestamp: number
+}
+
+export interface TelemetryEnvelope {
+  v: number
+  drones: DroneState[]
+  alerts: CollisionAlert[]
+}
 
 export interface Waypoint {
   lng: number

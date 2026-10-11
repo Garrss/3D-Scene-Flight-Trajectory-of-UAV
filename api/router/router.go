@@ -13,6 +13,7 @@ func Setup(hub *handler.Hub, allowedOrigins []string) http.Handler {
 
 	mux.HandleFunc("GET /ws", hub.HandleWS)
 	mux.HandleFunc("GET /api/state", hub.HandleState)
+	mux.HandleFunc("GET /api/alerts", hub.HandleAlerts)
 	mux.HandleFunc("GET /api/config", hub.HandleConfig)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

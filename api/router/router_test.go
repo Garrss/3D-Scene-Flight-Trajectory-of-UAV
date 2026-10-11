@@ -46,4 +46,34 @@ func TestHTTPContracts(t *testing.T) {
 			t.Fatalf("POST /api/state status = %d, want 405", response.Code)
 		}
 	})
+
+	t.Run("state envelope", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodGet, "/api/state", nil)
+		response := httptest.NewRecorder()
+		server.ServeHTTP(response, request)
+		var envelope struct {
+			Version int           `json:"v"`
+			Drones  []interface{} `json:"drones"`
+			Alerts  []interface{} `json:"alerts"`
+		}
+		if err := json.NewDecoder(response.Body).Decode(&envelope); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusOK || envelope.Version != 1 || len(envelope.Drones) != 3 || envelope.Alerts == nil {
+			t.Fatalf("state response = %d %#v", response.Code, envelope)
+		}
+	})
+
+	t.Run("alerts array", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodGet, "/api/alerts", nil)
+		response := httptest.NewRecorder()
+		server.ServeHTTP(response, request)
+		var alerts []interface{}
+		if err := json.NewDecoder(response.Body).Decode(&alerts); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusOK || alerts == nil {
+			t.Fatalf("alerts response = %d %#v", response.Code, alerts)
+		}
+	})
 }

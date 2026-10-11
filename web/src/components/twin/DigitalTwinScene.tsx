@@ -39,7 +39,7 @@ const imagery = new UrlTemplateImageryProvider({
   url: 'https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
   subdomains: ['1', '2', '3', '4'],
   maximumLevel: 18,
-  credit: '地图影像 © 高德地图',
+  credit: 'Imagery © Amap (AutoNavi)',
 })
 const terrain = new EllipsoidTerrainProvider()
 const origin = Cartesian3.fromDegrees(TWIN_ORIGIN.lng, TWIN_ORIGIN.lat, 0)
@@ -134,7 +134,10 @@ export default function DigitalTwinScene({
     scene.globe.showGroundAtmosphere = true
     if (scene.skyAtmosphere) scene.skyAtmosphere.show = true
     scene.highDynamicRange = true
-    scene.requestRenderMode = false
+    // Render on demand: this scene is mostly static (camera flights and
+    // entity changes request renders internally). The Three.js overlay
+    // runs its own gated loop, so continuous Cesium redraws are waste.
+    scene.requestRenderMode = true
     scene.globe.depthTestAgainstTerrain = false
     scene.postProcessStages.fxaa.enabled = true
 
@@ -203,7 +206,7 @@ export default function DigitalTwinScene({
         ))}
       </Viewer>
       <ThreeTwinLayer viewer={viewer} selectedId={selectedId} layers={layers} running={running} />
-      <div className="twin-scene__engine-badge" aria-label="渲染引擎">
+      <div className="twin-scene__engine-badge" aria-label="Rendering engines">
         <span>CESIUM</span><i /> <span>THREE.JS</span>
       </div>
     </div>

@@ -10,6 +10,11 @@
 | `TICK_INTERVAL` | `200ms` | 模拟和广播间隔，使用 Go duration 语法且必须大于 0 |
 | `ALLOWED_ORIGINS` | 两个本地 Vite 地址 | CORS 与 WebSocket Origin 白名单，逗号分隔 |
 | `MISSION_FILE` | 空 | 可选任务 JSON 路径；为空时使用内置深圳任务 |
+| `COLLISION_WARN_M` | `100` | 仿真接近预警距离（米），仅用于可视化演示 |
+| `COLLISION_CRITICAL_M` | `50` | 仿真临界距离（米），触发演示垂直分离 |
+| `COLLISION_CLEAR_M` | `120` | 仿真解除距离（米），必须大于等于预警距离，用于迟滞 |
+| `COLLISION_HORIZON_S` | `15` | 预测最近点前视窗口（秒） |
+| `COLLISION_EVADE_ALT_M` | `15` | 仿真避障垂直分离量（米） |
 
 生产环境应设置精确的 `ALLOWED_ORIGINS`。仅在可信封闭环境中使用 `*`。当白名单包含本机回环地址时，开发服务器可使用相同协议下的其他回环端口，以兼容 Vite 自动选择空闲端口；该规则不会放宽外部域名。
 
@@ -63,6 +68,19 @@ Vite 只会把 `VITE_` 前缀变量暴露给浏览器，因此这些值不能包
 | `route[].alt` | number | 米，必须大于等于 0 |
 
 未知 JSON 字段会被拒绝，避免拼写错误静默生效。相邻重复航点可以存在，但整条航线不能全部位于同一水平位置。模拟器会自动从末点飞回首点，因此无需在数组末尾重复首点；若需要不同的返航路径，应显式加入中间航点。
+
+#### 内置演示任务
+
+`examples/` 目录下的任务文件可以直接通过 `MISSION_FILE` 加载：
+
+| 文件 | 说明 |
+| --- | --- |
+| `mission.example.json` | 单机自定义航线模板 |
+| `mission.collision.json` | 两机约 3 km 航段对向飞行，展示预警升级过程 |
+| `mission.collision-short.json` | 两机约 290 m 航段对向飞行，较短距离内触发预警 |
+| `mission.collision-loop.json` | 两机共用约 250 m 航段往返循环，反复出现预警、临界和演示垂直分离 |
+
+接近预警由 `COLLISION_WARN_M`、`COLLISION_CRITICAL_M`、`COLLISION_CLEAR_M` 和 `COLLISION_HORIZON_S` 控制。`COLLISION_HORIZON_S` 决定“多远之前”就按当前航向和速度预测冲突：预测最近点进入预警距离即显示预警，因此航段较短、对向速度较高的演示任务会在起飞瞬间出现预警。`COLLISION_EVADE_ALT_M` 只在进入临界距离时生效，用于演示垂直分离，并非真实避障能力。
 
 ## 部署模式
 

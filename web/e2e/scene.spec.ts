@@ -19,10 +19,12 @@ test('renders live telemetry and a nonblank 3D scene without panel overlap', asy
 
   const hud = page.locator('.hud-panel')
   const controls = page.locator('.scene-controls')
-  await expect(hud).toContainText('深圳无人机巡航演示')
-  await expect(hud).toContainText('已连接')
+  // Workspaces lazy-load their 3D chunks: allow time for the chunk fetch,
+  // mission config, and first WebSocket frames on cold servers.
+  await expect(hud).toContainText('Shenzhen UAV Patrol Demo', { timeout: 60_000 })
+  await expect(hud).toContainText('Online')
   await expect(hud).toContainText('uav-001')
-  await expect(hud).toContainText('在线: 3 架')
+  await expect(hud).toContainText('Online: 3', { timeout: 60_000 })
   await expect(controls).toBeVisible()
 
   const canvas = page.locator('.cesium-widget canvas')
@@ -52,8 +54,8 @@ test('renders live telemetry and a nonblank 3D scene without panel overlap', asy
   }
   await page.waitForTimeout(1_500)
   const chaseFrame = await captureVisibleScene(page, sceneClip)
-  await controls.getByRole('button', { name: /俯瞰视角/ }).click()
-  await expect(controls.getByRole('button', { name: /俯瞰视角/ })).toHaveCSS('font-weight', '700')
+  await controls.getByRole('button', { name: /Top-down view/ }).click()
+  await expect(controls.getByRole('button', { name: /Top-down view/ })).toHaveCSS('font-weight', '700')
   await page.waitForTimeout(1_500)
   const topFrame = await captureVisibleScene(page, sceneClip)
   expect(imageDifference(chaseFrame, topFrame)).toBeGreaterThan(8)
@@ -66,9 +68,9 @@ test('switches to the Cesium and Three.js digital twin workspace with working co
   page.on('pageerror', (error) => pageErrors.push(error.message))
   await page.goto('/')
 
-  await page.getByRole('button', { name: '数字孪生' }).click()
+  await page.getByRole('button', { name: 'Digital Twin' }).click()
   await expect(page).toHaveURL(/project=digital-twin/)
-  await expect(page.getByRole('heading', { name: '园区资产' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Campus assets' })).toBeVisible({ timeout: 60_000 })
 
   const cesiumCanvas = page.locator('.twin-scene .cesium-widget canvas')
   const threeCanvas = page.locator('.three-twin-layer canvas')
@@ -81,14 +83,14 @@ test('switches to the Cesium and Three.js digital twin workspace with working co
 
   const viewport = page.viewportSize()!
   if (viewport.width <= 860) {
-    await page.getByRole('button', { name: '打开资产目录' }).click()
+    await page.getByRole('button', { name: 'Open asset catalog' }).click()
   }
-  await page.getByRole('button', { name: /低空通信基站/ }).click()
+  await page.getByRole('button', { name: /Low-Altitude Comms Tower/ }).click()
   await expect(page.getByText('COM-E05', { exact: true }).last()).toBeVisible()
 
-  const pauseButton = page.getByRole('button', { name: '暂停仿真' })
+  const pauseButton = page.getByRole('button', { name: 'Pause simulation' })
   await pauseButton.click()
-  await expect(page.getByRole('button', { name: '继续仿真' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Resume simulation' })).toBeVisible()
 
   const canvasRegion = {
     x: Math.floor(viewport.width * 0.34),
@@ -101,7 +103,7 @@ test('switches to the Cesium and Three.js digital twin workspace with working co
   expect(pageErrors).toEqual([])
 
   await page.reload()
-  await expect(page.getByRole('heading', { name: '园区资产' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Campus assets' })).toBeVisible({ timeout: 60_000 })
 })
 
 async function captureVisibleScene(page: Page, clip: Rect): Promise<Buffer> {
