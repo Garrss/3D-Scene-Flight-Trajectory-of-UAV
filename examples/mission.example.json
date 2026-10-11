@@ -1,10 +1,10 @@
 {
-  "name": "自定义单机任务",
+  "name": "Custom single-drone mission",
   "launchPoint": { "lng": 113.9325, "lat": 22.5317, "alt": 50 },
   "drones": [
     {
       "id": "uav-demo",
-      "name": "演示航线",
+      "name": "Demo route",
       "color": "#00d4ff",
       "speed": 14,
       "route": [

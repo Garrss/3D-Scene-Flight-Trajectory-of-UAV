@@ -1,4 +1,5 @@
-import type { DroneState } from '../types/drone'
+import { useMemo } from 'react'
+import type { CollisionAlert, DroneState } from '../types/drone'
 
 interface Props {
   droneState: DroneState | null
@@ -8,6 +9,7 @@ interface Props {
   onSelectDrone: (id: string) => void
   missionName?: string
   missionError?: string | null
+  alerts?: CollisionAlert[]
 }
 
 export default function HUD({
@@ -18,7 +20,9 @@ export default function HUD({
   onSelectDrone,
   missionName,
   missionError,
+  alerts = [],
 }: Props) {
+  const critical = useMemo(() => alerts.filter((a) => a.severity === 'critical').length, [alerts])
   return (
     <div
       className="hud-panel"
@@ -44,21 +48,24 @@ export default function HUD({
           color: '#0ff',
         }}
       >
-        {missionName ?? '无人机巡航系统'}
+        {missionName ?? 'UAV Cruise System'}
       </div>
 
       {missionError && (
-        <div style={{ color: '#ff6b6b', marginBottom: 8 }}>任务配置加载失败: {missionError}</div>
+        <div style={{ color: '#ff6b6b', marginBottom: 8 }}>Failed to load mission config: {missionError}</div>
       )}
 
       <div style={{ marginBottom: 8 }}>
-        连接状态：{connected ? '🟢 已连接' : '🔴 断开'}
+        Connection:{connected ? ' 🟢 Online' : ' 🔴 Offline'}
         <span style={{ marginLeft: 12, color: '#888', fontSize: 12 }}>
-          在线: {droneIds.length} 架
+          Online: {droneIds.length}
+        </span>
+        <span style={{ marginLeft: 12, fontSize: 12, color: critical > 0 ? '#ff6b6b' : alerts.length > 0 ? '#ffd75e' : '#888' }}>
+          {alerts.length > 0 ? `⚠ Close pairs ${alerts.length}${critical > 0 ? ` (critical ${critical})` : ''} · simulated` : 'Spacing normal · simulated'}
         </span>
       </div>
 
-      {/* 无人机快捷切换 */}
+      {/* Drone quick switch */}
       {droneIds.length > 1 && (
         <div style={{ marginBottom: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {droneIds.map((id) => (
@@ -86,15 +93,18 @@ export default function HUD({
       {droneState ? (
         <div style={{ lineHeight: '1.8' }}>
           <div>📌 ID : {droneState.droneId}</div>
-          <div>📍 经度: {droneState.lng.toFixed(6)}°</div>
-          <div>📍 纬度: {droneState.lat.toFixed(6)}°</div>
-          <div>📏 高度: {droneState.alt.toFixed(1)} m</div>
-          <div>🧭 航向: {droneState.heading.toFixed(1)}°</div>
-          <div>📐 俯仰: {droneState.pitch.toFixed(2)}°</div>
-          <div>↩️ 横滚: {droneState.roll.toFixed(2)}°</div>
-          <div>💨 速度: {droneState.speed} m/s</div>
+          <div>📍 Longitude: {droneState.lng.toFixed(6)}°</div>
+          <div>📍 Latitude: {droneState.lat.toFixed(6)}°</div>
+          <div>📏 Altitude: {droneState.alt.toFixed(1)} m</div>
+          <div>🧭 Heading: {droneState.heading.toFixed(1)}°</div>
+          <div>📐 Pitch: {droneState.pitch.toFixed(2)}°</div>
+          <div>↩️ Roll: {droneState.roll.toFixed(2)}°</div>
+          <div>💨 Speed: {droneState.speed} m/s</div>
+          {droneState.avoidanceActive && (
+            <div style={{ color: '#0ff' }}>🛡️ Simulated avoidance: temporary vertical split, returning to route altitude</div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            🔋 电池: {droneState.battery}%
+            🔋 Battery: {droneState.battery}%
             <span
               style={{
                 display: 'inline-block',
@@ -124,7 +134,7 @@ export default function HUD({
           </div>
         </div>
       ) : (
-        <div style={{ color: '#888' }}>等待数据...</div>
+        <div style={{ color: '#888' }}>Waiting for telemetry…</div>
       )}
     </div>
   )

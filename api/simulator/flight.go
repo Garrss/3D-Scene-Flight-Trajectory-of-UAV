@@ -143,7 +143,7 @@ func (fs *FlightSimulator) Tick() model.DroneState {
 
 	lng := lerp(from.Lng, to.Lng, fs.progress)
 	lat := lerp(from.Lat, to.Lat, fs.progress)
-	alt := lerp(from.Alt, to.Alt, fs.progress)
+	alt := lerp(from.Alt, to.Alt, fs.progress) + fs.avoidanceOffset
 
 	heading := bearing(from.Lat, from.Lng, to.Lat, to.Lng)
 
@@ -159,23 +159,40 @@ func (fs *FlightSimulator) Tick() model.DroneState {
 	}
 
 	fs.state = model.DroneState{
-		DroneID:       fs.droneID,
-		Lng:           lng,
-		Lat:           lat,
-		Alt:           alt,
-		Heading:       heading,
-		Pitch:         pitch,
-		Roll:          roll,
-		Speed:         math.Round(speed*100) / 100,
-		Battery:       math.Round(fs.battery*10) / 10,
-		Timestamp:     time.Now().Unix(),
-		Status:        "flying",
-		Mode:          fs.mode,
-		WaypointIndex: fs.currentIdx,
+		DroneID:         fs.droneID,
+		Lng:             lng,
+		Lat:             lat,
+		Alt:             alt,
+		Heading:         heading,
+		Pitch:           pitch,
+		Roll:            roll,
+		Speed:           math.Round(speed*100) / 100,
+		Battery:         math.Round(fs.battery*10) / 10,
+		Timestamp:       time.Now().Unix(),
+		Status:          "flying",
+		WaypointIndex:   fs.currentIdx,
+		AvoidanceActive: fs.avoidanceActive,
 	}
 	return fs.state
 }
 
+// SetAvoidance applies a simulated demo altitude offset. Positive climbs,
+// negative descends; active=false clears the maneuver and returns the drone
+// to its route altitude on subsequent ticks. Simulation only.
+func (fs *FlightSimulator) SetAvoidance(active bool, offsetAlt float64) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	fs.avoidanceActive = active
+	if active {
+		fs.avoidanceOffset = offsetAlt
+	} else {
+		fs.avoidanceOffset = 0
+	}
+	// Reflect the flag immediately so /api/state stays consistent between ticks.
+	fs.state.AvoidanceActive = active
+	if !active {
+		// Altitude itself converges back via Tick; flag clears at once.
+	}
 // UpdateRoute stages route changes until the drone reaches its next waypoint.
 // Staged drones use the new route immediately for their next dispatch.
 func (fs *FlightSimulator) UpdateRoute(route []model.Waypoint) {

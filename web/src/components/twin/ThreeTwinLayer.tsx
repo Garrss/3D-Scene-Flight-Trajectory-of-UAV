@@ -60,8 +60,6 @@ interface LayerScene {
   assetGroups: Map<string, Group>
 }
 
-const threeVector = (value: Cartesian3) => new Vector3(value.x, value.z, -value.y)
-
 function createTextSprite(text: string) {
   const canvas = document.createElement('canvas')
   canvas.width = 320
@@ -268,12 +266,17 @@ export default function ThreeTwinLayer({ viewer, selectedId, layers, running }: 
   const sceneState = useRef<LayerScene | null>(null)
   const runningRef = useRef(running)
   runningRef.current = running
+  // Set by the layers/selection effect below so the gated render loop
+  // redraws even when the camera is idle.
+  const dirtyRef = useRef(true)
 
   useEffect(() => {
     if (!viewer || !containerRef.current) return
     const container = containerRef.current
     const renderer = new WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' })
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    // Cap pixel ratio at 1.5: full 2x quadruples fragment work on high-DPI
+    // displays while adding little visible sharpness to this flat-shaded scene.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
     renderer.outputColorSpace = SRGBColorSpace
     renderer.setClearColor(0x000000, 0)
     container.appendChild(renderer.domElement)
@@ -296,6 +299,7 @@ export default function ThreeTwinLayer({ viewer, selectedId, layers, running }: 
       renderer.setSize(clientWidth, clientHeight, false)
       camera.aspect = clientWidth / Math.max(clientHeight, 1)
       camera.updateProjectionMatrix()
+      dirtyRef.current = true
     }
     const observer = new ResizeObserver(resize)
     observer.observe(container)
@@ -303,22 +307,54 @@ export default function ThreeTwinLayer({ viewer, selectedId, layers, running }: 
 
     const startedAt = performance.now()
     let frame = 0
+    // Scratch objects reused every frame: the old loop allocated 6+
+    // Cartesian3/Vector3 plus a cloned lookAt target per frame, and
+    // recomputed the projection matrix even when fov/aspect were static.
+    const scratchPos = new Cartesian3()
+    const scratchDir = new Cartesian3()
+    const scratchUp = new Cartesian3()
+    const tmpPosition = new Vector3()
+    const tmpDirection = new Vector3()
+    const tmpUp = new Vector3()
+    const tmpLook = new Vector3()
+    const toThree = (src: Cartesian3, dst: Vector3): Vector3 => dst.set(src.x, src.z, -src.y)
+    let lastFov = Number.NaN
+    let lastCamKey = ''
+    let renderedOnce = false
     const render = (now: number) => {
       frame = requestAnimationFrame(render)
-      const positionEnu = CesiumMatrix4.multiplyByPoint(worldToEnu, viewer.camera.positionWC, new Cartesian3())
-      const directionEnu = CesiumMatrix4.multiplyByPointAsVector(worldToEnu, viewer.camera.directionWC, new Cartesian3())
-      const upEnu = CesiumMatrix4.multiplyByPointAsVector(worldToEnu, viewer.camera.upWC, new Cartesian3())
-      const position = threeVector(positionEnu)
-      const direction = threeVector(directionEnu)
-      camera.position.copy(position)
-      camera.up.copy(threeVector(upEnu)).normalize()
-      camera.lookAt(position.clone().add(direction))
+      CesiumMatrix4.multiplyByPoint(worldToEnu, viewer.camera.positionWC, scratchPos)
+      CesiumMatrix4.multiplyByPointAsVector(worldToEnu, viewer.camera.directionWC, scratchDir)
+      CesiumMatrix4.multiplyByPointAsVector(worldToEnu, viewer.camera.upWC, scratchUp)
+      toThree(scratchPos, tmpPosition)
+      toThree(scratchDir, tmpDirection)
+      toThree(scratchUp, tmpUp)
+      camera.position.copy(tmpPosition)
+      camera.up.copy(tmpUp).normalize()
+      camera.lookAt(tmpLook.copy(tmpPosition).add(tmpDirection))
 
       const frustum = viewer.camera.frustum as { fovy?: number }
-      if (frustum.fovy) camera.fov = frustum.fovy * 180 / Math.PI
-      camera.updateProjectionMatrix()
+      if (frustum.fovy) {
+        const fov = (frustum.fovy * 180) / Math.PI
+        if (fov !== lastFov) {
+          camera.fov = fov
+          camera.updateProjectionMatrix()
+          lastFov = fov
+        }
+      }
 
-      if (runningRef.current) {
+      const animating = runningRef.current
+      // Skip redraw when paused and nothing changed: camera key covers
+      // position/direction, dirtyRef covers layer/selection/resize updates.
+      const camKey =
+        `${tmpPosition.x.toFixed(3)},${tmpPosition.y.toFixed(3)},${tmpPosition.z.toFixed(3)},` +
+        `${tmpDirection.x.toFixed(4)},${tmpDirection.y.toFixed(4)},${tmpDirection.z.toFixed(4)}`
+      const cameraMoved = camKey !== lastCamKey
+      if (!animating && renderedOnce && !cameraMoved && !dirtyRef.current) return
+      lastCamKey = camKey
+      dirtyRef.current = false
+
+      if (animating) {
         // The first RAF timestamp can precede performance.now() from this frame.
         const time = Math.max(0, (now - startedAt) / 1000)
         layerScene.animated.forEach((group, index) => {
@@ -341,6 +377,7 @@ export default function ThreeTwinLayer({ viewer, selectedId, layers, running }: 
         layerScene.drone.rotation.y = Math.atan2(to[0] - from[0], -(to[1] - from[1]))
       }
       renderer.render(scene, camera)
+      renderedOnce = true
     }
     frame = requestAnimationFrame(render)
 
@@ -375,6 +412,8 @@ export default function ThreeTwinLayer({ viewer, selectedId, layers, running }: 
     const asset = TWIN_ASSETS.find((item) => item.id === selectedId)
     current.selection.visible = Boolean(asset)
     if (asset) current.selection.position.set(asset.east, 1.2, -asset.north)
+    // Layer/selection changes don't move the camera, so wake the gated loop.
+    dirtyRef.current = true
   }, [layers, selectedId])
 
   return <div ref={containerRef} className="three-twin-layer" data-testid="three-twin-layer" aria-hidden="true" />

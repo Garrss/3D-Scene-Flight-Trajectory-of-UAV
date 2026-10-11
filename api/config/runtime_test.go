@@ -38,6 +38,33 @@ func TestLoadRuntimeRejectsInvalidTickInterval(t *testing.T) {
 	}
 }
 
+func TestLoadRuntimeCollisionDefaults(t *testing.T) {
+	t.Setenv("HTTP_ADDR", "")
+	t.Setenv("TICK_INTERVAL", "")
+	t.Setenv("ALLOWED_ORIGINS", "")
+	t.Setenv("MISSION_FILE", "")
+	t.Setenv("COLLISION_WARN_M", "")
+	t.Setenv("COLLISION_CRITICAL_M", "")
+	t.Setenv("COLLISION_CLEAR_M", "")
+
+	runtimeConfig, err := LoadRuntime()
+	if err != nil {
+		t.Fatalf("LoadRuntime() error = %v", err)
+	}
+	if runtimeConfig.CollisionWarnM != 100 || runtimeConfig.CollisionCriticalM != 50 || runtimeConfig.CollisionClearM != 120 {
+		t.Fatalf("collision thresholds = %.1f/%.1f/%.1f, want 100/50/120",
+			runtimeConfig.CollisionWarnM, runtimeConfig.CollisionCriticalM, runtimeConfig.CollisionClearM)
+	}
+}
+
+func TestLoadRuntimeRejectsInvertedCollisionThresholds(t *testing.T) {
+	t.Setenv("COLLISION_WARN_M", "40")
+	t.Setenv("COLLISION_CRITICAL_M", "50")
+	if _, err := LoadRuntime(); err == nil {
+		t.Fatal("LoadRuntime() error = nil, want threshold ordering error")
+	}
+}
+
 func TestLoadMissionFromFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "mission.json")
 	data := `{"name":"test","drones":[{"id":"uav-test","name":"Test","color":"#ffffff","speed":10,"route":[{"lng":113,"lat":22,"alt":100},{"lng":114,"lat":23,"alt":120}]}]}`

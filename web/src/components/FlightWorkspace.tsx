@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import CesiumScene from './CesiumViewer'
 import HUD from './HUD'
+import CollisionPanel from './CollisionPanel'
 import { useDroneWS } from '../hooks/useDroneWS'
+import { useCollisionAlerts } from '../hooks/useCollisionAlerts'
 import { useMission } from '../hooks/useMission'
 import type { Waypoint } from '../types/drone'
 
 export default function FlightWorkspace() {
-  const { fleet, droneIds, connected, sendControl } = useDroneWS()
+  const { fleet, droneIds, connected, backendAlerts, sendControl } = useDroneWS()
+  const alerts = useCollisionAlerts(fleet, backendAlerts)
   const { mission, error: missionError, saveDroneRoute } = useMission()
   const [selectedId, setSelectedId] = useState<string>('')
 
@@ -101,12 +104,14 @@ export default function FlightWorkspace() {
   }
 
   return (
-    <section className="project-workspace flight-workspace" aria-label="无人机飞行轨迹项目">
+    <section className="project-workspace flight-workspace" aria-label="UAV flight trajectory project">
       <CesiumScene
         fleet={fleet}
         droneIds={droneIds}
         selectedId={selectedId}
         onSelectDrone={setSelectedId}
+        mission={mission}
+        alerts={alerts}
         onReturnDroneToBase={returnDroneToBase}
         mission={displayMission}
         waypointEditMode={editingRoute}
@@ -164,7 +169,11 @@ export default function FlightWorkspace() {
         onSelectDrone={setSelectedId}
         missionName={mission?.name}
         missionError={missionError}
+        alerts={alerts}
       />
+      <div style={{ position: 'absolute', right: 16, bottom: 16, zIndex: 10 }}>
+        <CollisionPanel alerts={alerts} />
+      </div>
     </section>
   )
 }

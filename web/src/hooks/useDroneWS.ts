@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { webSocketUrl } from '../config/runtime'
 import { parseDronePayload } from '../lib/dronePayload'
-import type { DroneFleet } from '../types/drone'
+import type { CollisionAlert, DroneFleet } from '../types/drone'
 
 export function useDroneWS() {
   const [fleet, setFleet] = useState<DroneFleet>({})
   const [connected, setConnected] = useState(false)
   const [droneIds, setDroneIds] = useState<string[]>([])
+  const [backendAlerts, setBackendAlerts] = useState<CollisionAlert[]>([])
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<number>()
   const isMounted = useRef(false)
@@ -37,8 +38,9 @@ export function useDroneWS() {
 
       ws.onmessage = (evt) => {
         try {
-          const { fleet: newFleet, ids } = parseDronePayload(evt.data)
+          const { fleet: newFleet, ids, alerts } = parseDronePayload(evt.data)
           setFleet(newFleet)
+          setBackendAlerts(alerts)
 
           setDroneIds((prev) => {
             if (prev.length !== ids.length || prev.some((id, i) => id !== ids[i])) {
@@ -72,5 +74,5 @@ export function useDroneWS() {
     }
   }, [])
 
-  return { fleet, droneIds, connected, sendControl }
+  return { fleet, droneIds, connected, backendAlerts, sendControl }
 }

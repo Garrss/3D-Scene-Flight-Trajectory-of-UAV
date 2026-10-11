@@ -21,34 +21,34 @@ export const TWIN_ORIGIN = { lng: 114.0615, lat: 22.5323 }
 
 export const TWIN_ASSETS: TwinAsset[] = [
   {
-    id: 'command-center', name: '综合指挥中心', code: 'BLD-A01', kind: 'building', status: 'normal',
+    id: 'command-center', name: 'Command Center', code: 'BLD-A01', kind: 'building', status: 'normal',
     east: -82, north: 42, width: 52, depth: 34, height: 34,
-    metric: '22.6 ℃', metricLabel: '室内温度', secondary: '能耗 118 kW',
+    metric: '22.6 °C', metricLabel: 'Indoor temperature', secondary: 'Energy 118 kW',
   },
   {
-    id: 'warehouse', name: '智能仓储中心', code: 'BLD-B02', kind: 'building', status: 'normal',
+    id: 'warehouse', name: 'Smart Warehouse', code: 'BLD-B02', kind: 'building', status: 'normal',
     east: 24, north: 55, width: 72, depth: 42, height: 21,
-    metric: '96.8%', metricLabel: '设备在线', secondary: '库容 72%',
+    metric: '96.8%', metricLabel: 'Devices online', secondary: 'Capacity 72%',
   },
   {
-    id: 'energy-center', name: '综合能源站', code: 'ENE-C03', kind: 'energy', status: 'warning',
+    id: 'energy-center', name: 'Energy Station', code: 'ENE-C03', kind: 'energy', status: 'warning',
     east: 96, north: -22, width: 42, depth: 34, height: 17,
-    metric: '1.82 MW', metricLabel: '当前负荷', secondary: '储能 64%',
+    metric: '1.82 MW', metricLabel: 'Current load', secondary: 'Storage 64%',
   },
   {
-    id: 'data-center', name: '边缘数据中心', code: 'BLD-D04', kind: 'building', status: 'normal',
+    id: 'data-center', name: 'Edge Data Center', code: 'BLD-D04', kind: 'building', status: 'normal',
     east: -30, north: -70, width: 54, depth: 34, height: 25,
-    metric: '38.2%', metricLabel: '计算负载', secondary: 'PUE 1.24',
+    metric: '38.2%', metricLabel: 'Compute load', secondary: 'PUE 1.24',
   },
   {
-    id: 'communication-tower', name: '低空通信基站', code: 'COM-E05', kind: 'communication', status: 'normal',
+    id: 'communication-tower', name: 'Low-Altitude Comms Tower', code: 'COM-E05', kind: 'communication', status: 'normal',
     east: 76, north: 86, width: 8, depth: 8, height: 48,
-    metric: '-67 dBm', metricLabel: '信号强度', secondary: '连接 128',
+    metric: '-67 dBm', metricLabel: 'Signal strength', secondary: 'Connections 128',
   },
   {
-    id: 'environment-station', name: '环境监测站', code: 'ENV-F06', kind: 'environment', status: 'normal',
+    id: 'environment-station', name: 'Environment Station', code: 'ENV-F06', kind: 'environment', status: 'normal',
     east: -122, north: -46, width: 8, depth: 8, height: 12,
-    metric: '18 μg/m³', metricLabel: 'PM2.5', secondary: '噪声 42 dB',
+    metric: '18 µg/m³', metricLabel: 'PM2.5', secondary: 'Noise 42 dB',
   },
 ]
 

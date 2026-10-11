@@ -1,0 +1,25 @@
+{
+  "name": "Close head-on loop demo (simulated)",
+  "drones": [
+    {
+      "id": "uav-east",
+      "name": "Eastbound",
+      "color": "#00d4ff",
+      "speed": 15,
+      "route": [
+        { "lng": 113.9420, "lat": 22.5300, "alt": 120 },
+        { "lng": 113.9444, "lat": 22.5300, "alt": 120 }
+      ]
+    },
+    {
+      "id": "uav-west",
+      "name": "Westbound",
+      "color": "#ff6b35",
+      "speed": 15,
+      "route": [
+        { "lng": 113.9444, "lat": 22.5300, "alt": 120 },
+        { "lng": 113.9420, "lat": 22.5300, "alt": 120 }
+      ]
+    }
+  ]
+}

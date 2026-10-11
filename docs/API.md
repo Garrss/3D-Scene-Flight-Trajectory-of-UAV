@@ -52,32 +52,50 @@
 
 `GET /api/state`
 
-返回无人机遥测数组。服务刚启动、第一次 tick 尚未发生时，姿态和时间戳可能保持初始零值。
+返回版本化遥测包。服务刚启动、第一次 tick 尚未发生时，姿态和时间戳可能保持初始零值。
 
 ```json
-[
-  {
-    "droneId": "uav-001",
-    "lng": 113.9325,
-    "lat": 22.5317,
-    "alt": 50,
-    "heading": 145.2,
-    "pitch": 0.31,
-    "roll": -1.42,
-    "speed": 7.65,
-    "battery": 100,
-    "timestamp": 1786593600,
-    "status": "staged",
-    "waypointIndex": 0
-  }
-]
+{
+  "v": 1,
+  "drones": [
+    {
+      "droneId": "uav-001",
+      "lng": 113.9301,
+      "lat": 22.5334,
+      "alt": 150,
+      "heading": 145.2,
+      "pitch": 0.31,
+      "roll": -1.42,
+      "speed": 7.65,
+      "battery": 100,
+      "timestamp": 1786593600,
+      "status": "flying",
+      "waypointIndex": 0,
+      "avoidanceActive": false
+    }
+  ],
+  "alerts": [
+    {
+      "id": "uav-001~uav-002",
+      "droneA": "uav-001",
+      "droneB": "uav-002",
+      "distanceM": 80.5,
+      "severity": "warning",
+      "predictedMinM": 40.2,
+      "evading": false,
+      "timestamp": 1786593600
+    }
+  ]
+}
 ```
+
+告警为仿真可视化演示（预警 100 米、临界 50 米），不可用于真实飞行安全决策。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `droneId` | string | 任务内唯一 ID |
 | `lng`, `lat` | number | 当前经纬度 |
-| `alt` | number | 当前高度，米 |
+| `alt` | number | 当前高度，米（含仿真避障偏移） |
 | `heading` | number | 真北方向航向角，范围 `[0, 360)` |
 | `pitch`, `roll` | number | 俯仰角和横滚角 |
 | `speed` | number | 当前模拟速度，米/秒 |
@@ -85,6 +103,13 @@
 | `timestamp` | integer | 状态生成时间，Unix 秒 |
 | `status` | string | `staged`、`launching`、`flying`、`manual`、`returning` 或 `returning-to-base` |
 | `waypointIndex` | integer | 当前航段起点索引 |
+| `avoidanceActive` | boolean | 仿真避障偏移是否生效 |
+
+## 告警快照
+
+`GET /api/alerts`
+
+返回与 `/api/state` 中 `alerts` 相同的仿真接近告警数组，空数组表示当前无 100 米内接近或预测冲突。
 
 ## WebSocket 遥测
 

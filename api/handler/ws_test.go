@@ -36,12 +36,15 @@ func TestWebSocketOriginAndBroadcast(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		var states []model.DroneState
-		if err := conn.ReadJSON(&states); err != nil {
+		var envelope model.TelemetryEnvelope
+		if err := conn.ReadJSON(&envelope); err != nil {
 			t.Fatalf("ReadJSON() error = %v", err)
 		}
-		if len(states) != 3 || states[0].DroneID != "uav-001" {
-			t.Fatalf("telemetry = %#v", states)
+		if len(envelope.Drones) != 3 || envelope.Drones[0].DroneID != "uav-001" {
+			t.Fatalf("telemetry = %#v", envelope.Drones)
+		}
+		if envelope.Version != 1 || envelope.Alerts == nil {
+			t.Fatalf("envelope = %#v, want v=1 with alerts array", envelope)
 		}
 	})
 
@@ -56,12 +59,12 @@ func TestWebSocketOriginAndBroadcast(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		var states []model.DroneState
-		if err := conn.ReadJSON(&states); err != nil {
+		var envelope model.TelemetryEnvelope
+		if err := conn.ReadJSON(&envelope); err != nil {
 			t.Fatalf("ReadJSON() error = %v", err)
 		}
-		if len(states) != 3 {
-			t.Fatalf("telemetry count = %d, want 3", len(states))
+		if len(envelope.Drones) != 3 {
+			t.Fatalf("telemetry count = %d, want 3", len(envelope.Drones))
 		}
 	})
 
@@ -113,5 +116,33 @@ func TestHandleConfigProducesJSON(t *testing.T) {
 	}
 	if got.Name != mission.Name || len(got.Drones) != len(mission.Drones) {
 		t.Fatalf("mission response = %#v", got)
+	}
+}
+
+func TestHandleStateProducesEnvelope(t *testing.T) {
+	hub := NewHub(config.DefaultMission(), 200*time.Millisecond, []string{"*"})
+	response := httptest.NewRecorder()
+	hub.HandleState(response, httptest.NewRequest(http.MethodGet, "/api/state", nil))
+
+	var envelope model.TelemetryEnvelope
+	if err := json.NewDecoder(response.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Version != 1 || len(envelope.Drones) != 3 || envelope.Alerts == nil {
+		t.Fatalf("state envelope = %#v", envelope)
+	}
+}
+
+func TestHandleAlertsProducesArray(t *testing.T) {
+	hub := NewHub(config.DefaultMission(), 200*time.Millisecond, []string{"*"})
+	response := httptest.NewRecorder()
+	hub.HandleAlerts(response, httptest.NewRequest(http.MethodGet, "/api/alerts", nil))
+
+	var alerts []model.Alert
+	if err := json.NewDecoder(response.Body).Decode(&alerts); err != nil {
+		t.Fatal(err)
+	}
+	if alerts == nil {
+		t.Fatal("alerts should be a non-nil array")
 	}
 }
