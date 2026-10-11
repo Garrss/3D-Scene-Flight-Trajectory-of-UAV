@@ -10,15 +10,23 @@ import (
 )
 
 type FlightSimulator struct {
-	mu           sync.RWMutex
-	droneID      string
-	route        []model.Waypoint
-	currentIdx   int
-	progress     float64
-	battery      float64
-	speed        float64
-	state        model.DroneState
-	tickInterval time.Duration
+	mu               sync.RWMutex
+	droneID          string
+	route            []model.Waypoint
+	currentIdx       int
+	progress         float64
+	battery          float64
+	speed            float64
+	state            model.DroneState
+	tickInterval     time.Duration
+	mode             string
+	manualKeys       map[string]bool
+	returnLng        float64
+	returnLat        float64
+	returnAlt        float64
+	returnIdx        int
+	returnProg       float64
+	manualLastUpdate time.Time
 }
 
 func NewFlightSimulator(cfg config.DroneConfig, tickInterval time.Duration) *FlightSimulator {
@@ -30,6 +38,8 @@ func NewFlightSimulator(cfg config.DroneConfig, tickInterval time.Duration) *Fli
 		battery:      config.InitBattery,
 		speed:        cfg.Speed,
 		tickInterval: tickInterval,
+		mode:         "auto",
+		manualKeys:   make(map[string]bool),
 	}
 	wp := fs.route[0]
 	fs.state = model.DroneState{
@@ -40,6 +50,7 @@ func NewFlightSimulator(cfg config.DroneConfig, tickInterval time.Duration) *Fli
 		Speed:   0,
 		Battery: fs.battery,
 		Status:  "flying",
+		Mode:    "auto",
 	}
 	return fs
 }
@@ -48,7 +59,30 @@ func (fs *FlightSimulator) Tick() model.DroneState {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
+	if fs.mode == "manual" {
+		fs.tickManual()
+		return fs.state
+	}
 	remainingDistance := fs.speed * fs.tickInterval.Seconds()
+	if fs.mode == "returning" {
+		distance := haversine(fs.state.Lat, fs.state.Lng, fs.returnLat, fs.returnLng)
+		step := remainingDistance
+		if distance <= step || distance < 0.5 {
+			fs.state.Lng, fs.state.Lat, fs.state.Alt = fs.returnLng, fs.returnLat, fs.returnAlt
+			fs.currentIdx, fs.progress, fs.mode = fs.returnIdx, fs.returnProg, "auto"
+		} else if distance > 0 {
+			ratio := step / distance
+			fs.state.Heading = bearing(fs.state.Lat, fs.state.Lng, fs.returnLat, fs.returnLng)
+			fs.state.Lng = lerp(fs.state.Lng, fs.returnLng, ratio)
+			fs.state.Lat = lerp(fs.state.Lat, fs.returnLat, ratio)
+			fs.state.Alt = lerp(fs.state.Alt, fs.returnAlt, ratio)
+			fs.state.Speed = fs.speed
+			fs.state.Status = "returning"
+			fs.state.Mode = "returning"
+			fs.state.Timestamp = time.Now().Unix()
+			return fs.state
+		}
+	}
 	var from, to model.Waypoint
 	var segDist float64
 
@@ -84,11 +118,6 @@ func (fs *FlightSimulator) Tick() model.DroneState {
 	pitch := math.Atan2(altDiff, segDist) * 180 / math.Pi
 	roll := math.Sin(float64(time.Now().UnixMilli())/1000.0) * 2.0
 
-	fs.battery -= 0.005 * fs.tickInterval.Seconds()
-	if fs.battery < 0 {
-		fs.battery = 100.0
-	}
-
 	speed := fs.speed
 	if fs.progress < 0.1 {
 		speed = fs.speed * (0.5 + fs.progress*5)
@@ -108,9 +137,102 @@ func (fs *FlightSimulator) Tick() model.DroneState {
 		Battery:       math.Round(fs.battery*10) / 10,
 		Timestamp:     time.Now().Unix(),
 		Status:        "flying",
+		Mode:          fs.mode,
 		WaypointIndex: fs.currentIdx,
 	}
 	return fs.state
+}
+
+// SetManual switches to heading-relative manual control and updates the held keys.
+func (fs *FlightSimulator) SetManual(keys []string) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	now := time.Now()
+	if fs.mode == "manual" {
+		fs.updateManualPosition(now)
+	} else {
+		fs.manualLastUpdate = now
+	}
+	fs.mode = "manual"
+	fs.manualKeys = make(map[string]bool, len(keys))
+	for _, key := range keys {
+		if key == "ArrowUp" || key == "ArrowDown" || key == "ArrowLeft" || key == "ArrowRight" {
+			fs.manualKeys[key] = true
+		}
+	}
+	fs.state.Mode, fs.state.Status = "manual", "manual"
+}
+
+// ReturnToRoute chooses the nearest point on any mission segment and flies to it.
+func (fs *FlightSimulator) ReturnToRoute() {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	bestDistance := math.Inf(1)
+	for i := range fs.route {
+		a, b := fs.route[i], fs.route[(i+1)%len(fs.route)]
+		latScale := 111320.0
+		lngScale := latScale * math.Cos(fs.state.Lat*math.Pi/180)
+		ax, ay := (a.Lng-fs.state.Lng)*lngScale, (a.Lat-fs.state.Lat)*latScale
+		bx, by := (b.Lng-fs.state.Lng)*lngScale, (b.Lat-fs.state.Lat)*latScale
+		dx, dy := bx-ax, by-ay
+		denom := dx*dx + dy*dy
+		t := 0.0
+		if denom > 0 {
+			t = math.Max(0, math.Min(1, -(ax*dx+ay*dy)/denom))
+		}
+		lng, lat, alt := lerp(a.Lng, b.Lng, t), lerp(a.Lat, b.Lat, t), lerp(a.Alt, b.Alt, t)
+		distance := haversine(fs.state.Lat, fs.state.Lng, lat, lng)
+		if distance < bestDistance {
+			bestDistance, fs.returnLng, fs.returnLat, fs.returnAlt = distance, lng, lat, alt
+			fs.returnIdx, fs.returnProg = i, t
+		}
+	}
+	fs.mode = "returning"
+	fs.manualKeys = make(map[string]bool)
+	fs.state.Mode, fs.state.Status = "returning", "returning"
+}
+
+func (fs *FlightSimulator) tickManual() {
+	fs.updateManualPosition(time.Now())
+	fs.state.Mode, fs.state.Status = "manual", "manual"
+	fs.state.Timestamp = time.Now().Unix()
+}
+
+func (fs *FlightSimulator) updateManualPosition(now time.Time) {
+	if fs.manualLastUpdate.IsZero() {
+		fs.manualLastUpdate = now
+		return
+	}
+	dt := now.Sub(fs.manualLastUpdate).Seconds()
+	fs.manualLastUpdate = now
+	if dt <= 0 {
+		return
+	}
+	forward := 0.0
+	if fs.manualKeys["ArrowUp"] {
+		forward++
+	}
+	if fs.manualKeys["ArrowDown"] {
+		forward--
+	}
+	lateral := 0.0
+	if fs.manualKeys["ArrowRight"] {
+		lateral++
+	}
+	if fs.manualKeys["ArrowLeft"] {
+		lateral--
+	}
+	speed := fs.speed
+	if forward != 0 && lateral != 0 {
+		forward *= 0.70710678
+		lateral *= 0.70710678
+	}
+	h := fs.state.Heading * math.Pi / 180
+	east := (forward*math.Sin(h) + lateral*math.Cos(h)) * speed * dt
+	north := (forward*math.Cos(h) - lateral*math.Sin(h)) * speed * dt
+	fs.state.Lng += east / (111320 * math.Cos(fs.state.Lat*math.Pi/180))
+	fs.state.Lat += north / 111320
+	fs.state.Speed = math.Hypot(forward, lateral) * speed
 }
 
 func (fs *FlightSimulator) GetState() model.DroneState {

@@ -30,6 +30,12 @@ type Hub struct {
 	upgrader       websocket.Upgrader
 }
 
+type controlMessage struct {
+	Type  string   `json:"type"`
+	Drone string   `json:"droneId"`
+	Keys  []string `json:"keys"`
+}
+
 func NewHub(mission config.Mission, tickInterval time.Duration, allowedOrigins []string) *Hub {
 	sims := make([]*simulator.FlightSimulator, len(mission.Drones))
 	for i, cfg := range mission.Drones {
@@ -120,8 +126,24 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	for {
-		_, _, err := conn.ReadMessage()
+		_, message, err := conn.ReadMessage()
 		if err != nil {
+			break
+		}
+		var control controlMessage
+		if json.Unmarshal(message, &control) != nil || control.Drone == "" {
+			continue
+		}
+		for _, sim := range h.simulators {
+			if sim.GetState().DroneID != control.Drone {
+				continue
+			}
+			switch control.Type {
+			case "manual":
+				sim.SetManual(control.Keys)
+			case "return":
+				sim.ReturnToRoute()
+			}
 			break
 		}
 	}

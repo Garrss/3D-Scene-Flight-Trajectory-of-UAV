@@ -227,6 +227,39 @@ button:focus-visible {
   right: 16px;
 }
 
+.flight-mode-control {
+  position: absolute;
+  z-index: 1000;
+  left: 50%;
+  bottom: 28px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(77, 216, 181, 0.4);
+  border-radius: 6px;
+  color: #c4d5d0;
+  background: rgba(8, 19, 21, 0.88);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+  font: 12px Consolas, monospace;
+}
+
+.flight-mode-control button {
+  padding: 7px 10px;
+  border: 1px solid #4dd8b5;
+  border-radius: 4px;
+  color: #071012;
+  background: #69e5c4;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.flight-mode-control button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .hud-panel {
   position: absolute;
   z-index: 999;

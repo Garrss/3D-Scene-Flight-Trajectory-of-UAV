@@ -12,6 +12,7 @@ type DroneState struct {
 	Battery       float64 `json:"battery"`
 	Timestamp     int64   `json:"timestamp"`
 	Status        string  `json:"status"`
+	Mode          string  `json:"mode"`
 	WaypointIndex int     `json:"waypointIndex"`
 }
 

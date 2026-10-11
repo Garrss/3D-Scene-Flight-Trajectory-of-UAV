@@ -11,6 +11,11 @@ export function useDroneWS() {
   const reconnectTimer = useRef<number>()
   const isMounted = useRef(false)
 
+  function sendControl(message: { type: 'manual' | 'return'; droneId: string; keys?: string[] }) {
+    const ws = wsRef.current
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message))
+  }
+
   useEffect(() => {
     isMounted.current = true
 
@@ -67,5 +72,5 @@ export function useDroneWS() {
     }
   }, [])
 
-  return { fleet, droneIds, connected }
+  return { fleet, droneIds, connected, sendControl }
 }
