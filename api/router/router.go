@@ -14,6 +14,7 @@ func Setup(hub *handler.Hub, allowedOrigins []string) http.Handler {
 	mux.HandleFunc("GET /ws", hub.HandleWS)
 	mux.HandleFunc("GET /api/state", hub.HandleState)
 	mux.HandleFunc("GET /api/config", hub.HandleConfig)
+	mux.HandleFunc("PUT /api/drones/{id}/route", hub.HandleDroneRoute)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
@@ -23,7 +24,7 @@ func Setup(hub *handler.Hub, allowedOrigins []string) http.Handler {
 		AllowOriginFunc: func(origin string) bool {
 			return handler.IsOriginAllowed(origin, allowedOrigins)
 		},
-		AllowedMethods: []string{http.MethodGet, http.MethodOptions},
+		AllowedMethods: []string{http.MethodGet, http.MethodPut, http.MethodOptions},
 		AllowedHeaders: []string{"Content-Type"},
 	})
 

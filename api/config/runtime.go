@@ -99,28 +99,35 @@ func ValidateMission(mission Mission) error {
 		if drone.Speed <= 0 {
 			return fmt.Errorf("drone %q speed must be positive", drone.ID)
 		}
-		if len(drone.Route) < 2 {
-			return fmt.Errorf("drone %q route must contain at least two waypoints", drone.ID)
+		if err := ValidateRoute(drone.ID, drone.Route); err != nil {
+			return err
 		}
-		hasMovement := false
-		for waypointIndex, waypoint := range drone.Route {
-			if waypoint.Lng < -180 || waypoint.Lng > 180 {
-				return fmt.Errorf("drone %q route[%d].lng is out of range", drone.ID, waypointIndex)
-			}
-			if waypoint.Lat < -90 || waypoint.Lat > 90 {
-				return fmt.Errorf("drone %q route[%d].lat is out of range", drone.ID, waypointIndex)
-			}
-			if waypoint.Alt < 0 {
-				return fmt.Errorf("drone %q route[%d].alt must not be negative", drone.ID, waypointIndex)
-			}
-			if waypointIndex > 0 {
-				previous := drone.Route[waypointIndex-1]
-				hasMovement = hasMovement || previous.Lng != waypoint.Lng || previous.Lat != waypoint.Lat
-			}
+	}
+	return nil
+}
+
+func ValidateRoute(droneID string, route []model.Waypoint) error {
+	if len(route) < 2 {
+		return fmt.Errorf("drone %q route must contain at least two waypoints", droneID)
+	}
+	hasMovement := false
+	for waypointIndex, waypoint := range route {
+		if waypoint.Lng < -180 || waypoint.Lng > 180 {
+			return fmt.Errorf("drone %q route[%d].lng is out of range", droneID, waypointIndex)
 		}
-		if !hasMovement {
-			return fmt.Errorf("drone %q route must contain at least one non-zero segment", drone.ID)
+		if waypoint.Lat < -90 || waypoint.Lat > 90 {
+			return fmt.Errorf("drone %q route[%d].lat is out of range", droneID, waypointIndex)
 		}
+		if waypoint.Alt < 0 {
+			return fmt.Errorf("drone %q route[%d].alt must not be negative", droneID, waypointIndex)
+		}
+		if waypointIndex > 0 {
+			previous := route[waypointIndex-1]
+			hasMovement = hasMovement || previous.Lng != waypoint.Lng || previous.Lat != waypoint.Lat
+		}
+	}
+	if !hasMovement {
+		return fmt.Errorf("drone %q route must contain at least one non-zero segment", droneID)
 	}
 	return nil
 }

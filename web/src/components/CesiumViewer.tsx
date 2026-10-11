@@ -18,8 +18,11 @@ import {
   Credit,
   CreditDisplay,
   buildModuleUrl,
+  Cartographic,
+  ScreenSpaceEventHandler,
+  ScreenSpaceEventType,
 } from 'cesium'
-import type { DroneState, DroneFleet, Mission } from '../types/drone'
+import type { DroneState, DroneFleet, Mission, Waypoint } from '../types/drone'
 import { DroneInterpolator, lerpAngleRad } from '../lib/DroneInterpolator'
 
 import droneModelUrl from '../assets/uav.gltf?url'
@@ -146,6 +149,10 @@ interface Props {
   onSelectDrone: (id: string) => void
   onReturnDroneToBase: (id: string) => void
   mission: Mission | null
+  waypointEditMode: boolean
+  waypointAltitude: number
+  onAddWaypoint: (waypoint: Waypoint) => void
+  hiddenRouteId?: string
 }
 
 // 天气
@@ -232,7 +239,7 @@ function DroneEntity({
   )
 }
 
-export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone, onReturnDroneToBase, mission }: Props) {
+export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone, onReturnDroneToBase, mission, waypointEditMode, waypointAltitude, onAddWaypoint, hiddenRouteId }: Props) {
   const viewerRef = useRef<CesiumViewer | null>(null)
   const [followMode, setFollowMode] = useState<FollowMode>('chase')
   const [weather, setWeather] = useState<WeatherMode>('clear')
@@ -248,11 +255,14 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
 
   const routeData = useMemo(() => (mission?.drones ?? []).map((drone) => {
     const color = Color.fromCssColorString(drone.color) ?? DRONE_DEFAULT_COLOR
+    const routeWaypoints = drone.route ?? []
+    const displayWaypoints = routeWaypoints.length > 1 ? [...routeWaypoints, routeWaypoints[0]] : routeWaypoints
     return {
       ...drone,
+      route: routeWaypoints,
       color,
       positions: Cartesian3.fromDegreesArrayHeights(
-        [...(mission?.launchPoint ? [mission.launchPoint] : []), ...drone.route, drone.route[0]]
+        [...(mission?.launchPoint && routeWaypoints.length > 0 ? [mission.launchPoint] : []), ...displayWaypoints]
           .flatMap(({ lng, lat, alt }) => [lng, lat, alt]),
       ),
       waypointPositions: drone.route.map(({ lng, lat, alt }) => Cartesian3.fromDegrees(lng, lat, alt)),
@@ -271,6 +281,19 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
   followModeRef.current = followMode
   sceneModeRef.current = sceneMode
   selectedIdRef.current = selectedId
+
+  useEffect(() => {
+    const viewer = viewerRef.current
+    if (!viewer || !waypointEditMode) return
+    const handler = new ScreenSpaceEventHandler(viewer.scene.canvas)
+    handler.setInputAction((movement: { position: Cartesian2 }) => {
+      const cartesian = viewer.camera.pickEllipsoid(movement.position, viewer.scene.globe.ellipsoid)
+      if (!cartesian) return
+      const point = Cartographic.fromCartesian(cartesian)
+      onAddWaypoint({ lng: CesiumMath.toDegrees(point.longitude), lat: CesiumMath.toDegrees(point.latitude), alt: waypointAltitude })
+    }, ScreenSpaceEventType.LEFT_CLICK)
+    return () => handler.destroy()
+  }, [waypointEditMode, waypointAltitude, onAddWaypoint])
 
   useEffect(() => {
     for (const id of droneIds) {
@@ -541,6 +564,7 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
         navigationHelpButton={false}
         sceneModePicker={false}
         terrainProvider={flatTerrain}
+        style={waypointEditMode ? { cursor: 'crosshair' } : undefined}
         ref={(e) => {
           if (e?.cesiumElement && !viewerRef.current) handleViewerReady(e.cesiumElement)
         }}
@@ -570,14 +594,14 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
 
         {/* 所有航线 */}
         {routeData.map((rd) => (
-          <Entity key={`route-${rd.id}`}>
+          rd.route.length > 0 && rd.id !== hiddenRouteId && <Entity key={`route-${rd.id}`}>
             <PolylineGraphics positions={rd.positions} width={3} material={rd.material} clampToGround={false} />
           </Entity>
         ))}
 
         {/* 所有航线航点 */}
         {routeData.map((rd) =>
-          rd.route.map((_, wi) => (
+          (rd.id === hiddenRouteId ? [] : rd.route).map((_, wi) => (
             <Entity
               key={`wp-${rd.id}-${wi}`}
               position={rd.waypointPositions[wi]}

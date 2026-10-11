@@ -13,6 +13,7 @@ type FlightSimulator struct {
 	mu               sync.RWMutex
 	droneID          string
 	route            []model.Waypoint
+	pendingRoute     []model.Waypoint
 	currentIdx       int
 	progress         float64
 	battery          float64
@@ -131,6 +132,11 @@ func (fs *FlightSimulator) Tick() model.DroneState {
 		if segDist > 0 {
 			remainingDistance -= remainingOnSegment
 		}
+		if len(fs.pendingRoute) >= 2 {
+			fs.applyPendingRoute(to)
+			remainingDistance = 0
+			break
+		}
 		fs.currentIdx++
 		fs.progress = 0
 	}
@@ -168,6 +174,37 @@ func (fs *FlightSimulator) Tick() model.DroneState {
 		WaypointIndex: fs.currentIdx,
 	}
 	return fs.state
+}
+
+// UpdateRoute stages route changes until the drone reaches its next waypoint.
+// Staged drones use the new route immediately for their next dispatch.
+func (fs *FlightSimulator) UpdateRoute(route []model.Waypoint) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	updated := append([]model.Waypoint(nil), route...)
+	if !fs.launched {
+		fs.route = updated
+		fs.pendingRoute = nil
+		fs.currentIdx, fs.progress = 0, 0
+		return
+	}
+	fs.pendingRoute = updated
+}
+
+func (fs *FlightSimulator) applyPendingRoute(reference model.Waypoint) {
+	if len(fs.pendingRoute) < 2 {
+		return
+	}
+	fs.route = fs.pendingRoute
+	fs.pendingRoute = nil
+	fs.currentIdx, fs.progress = 0, 0
+	best := math.Inf(1)
+	for i, waypoint := range fs.route {
+		distance := haversine(reference.Lat, reference.Lng, waypoint.Lat, waypoint.Lng)
+		if distance < best {
+			best, fs.currentIdx = distance, i
+		}
+	}
 }
 
 // ReturnToBase overrides the current flight mode and sends this drone to its launch point.
@@ -234,6 +271,7 @@ func (fs *FlightSimulator) tickOutbound() {
 	if distance <= step || distance < 0.5 {
 		fs.state.Lng, fs.state.Lat, fs.state.Alt = target.Lng, target.Lat, target.Alt
 		fs.outbound = false
+		fs.applyPendingRoute(target)
 	} else if distance > 0 {
 		ratio := step / distance
 		fs.state.Heading = bearing(fs.state.Lat, fs.state.Lng, target.Lat, target.Lng)

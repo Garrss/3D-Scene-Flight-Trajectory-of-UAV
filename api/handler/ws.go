@@ -23,6 +23,7 @@ type Hub struct {
 	mu             sync.RWMutex
 	simulators     []*simulator.FlightSimulator
 	mission        config.Mission
+	missionMu      sync.RWMutex
 	tickInterval   time.Duration
 	allowedOrigins map[string]struct{}
 	origins        []string
@@ -185,9 +186,41 @@ func (h *Hub) HandleState(w http.ResponseWriter, r *http.Request) {
 
 func (h *Hub) HandleConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	h.missionMu.RLock()
+	defer h.missionMu.RUnlock()
 	if err := json.NewEncoder(w).Encode(h.mission); err != nil {
 		log.Println("encode mission response:", err)
 	}
+}
+
+func (h *Hub) HandleDroneRoute(w http.ResponseWriter, r *http.Request) {
+	droneID := r.PathValue("id")
+	var request struct {
+		Route []model.Waypoint `json:"route"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		http.Error(w, "invalid route JSON", http.StatusBadRequest)
+		return
+	}
+	if err := config.ValidateRoute(droneID, request.Route); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	h.missionMu.Lock()
+	defer h.missionMu.Unlock()
+	for i := range h.mission.Drones {
+		if h.mission.Drones[i].ID != droneID {
+			continue
+		}
+		h.simulators[i].UpdateRoute(request.Route)
+		h.mission.Drones[i].Route = append([]model.Waypoint(nil), request.Route...)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(h.mission.Drones[i])
+		return
+	}
+	http.Error(w, "drone not found", http.StatusNotFound)
 }
 
 func (h *Hub) checkOrigin(r *http.Request) bool {
