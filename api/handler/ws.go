@@ -43,14 +43,13 @@ const writeTimeout = 2 * time.Second
 // envelopeVersion versions the WS / /api/state payload.
 const envelopeVersion = 1
 
-func NewHub(mission config.Mission, tickInterval time.Duration, allowedOrigins []string, cfgs ...collision.Config) *Hub {
 type controlMessage struct {
 	Type  string   `json:"type"`
 	Drone string   `json:"droneId"`
 	Keys  []string `json:"keys"`
 }
 
-func NewHub(mission config.Mission, tickInterval time.Duration, allowedOrigins []string) *Hub {
+func NewHub(mission config.Mission, tickInterval time.Duration, allowedOrigins []string, cfgs ...collision.Config) *Hub {
 	if mission.LaunchPoint == (model.Waypoint{}) {
 		mission.LaunchPoint = config.DefaultMission().LaunchPoint
 	}

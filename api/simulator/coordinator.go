@@ -42,7 +42,13 @@ func (c *Coordinator) Update(sims []*FlightSimulator, states []model.DroneState,
 	// Decide which pairs demand evasion (critical distance only; warnings alert without maneuver).
 	demand := map[string]bool{}
 	for i := 0; i < len(states); i++ {
+		if states[i].Status == "staged" {
+			continue
+		}
 		for j := i + 1; j < len(states); j++ {
+			if states[j].Status == "staged" {
+				continue
+			}
 			if collision.Distance3D(states[i], states[j]) <= c.cfg.CriticalM {
 				demand[states[i].DroneID] = true
 				demand[states[j].DroneID] = true
@@ -52,6 +58,9 @@ func (c *Coordinator) Update(sims []*FlightSimulator, states []model.DroneState,
 	// Release with hysteresis: stay evading until clear of every other drone.
 	next := map[string]bool{}
 	for _, s := range states {
+		if s.Status == "staged" {
+			continue
+		}
 		if demand[s.DroneID] {
 			next[s.DroneID] = true
 			continue
@@ -59,7 +68,7 @@ func (c *Coordinator) Update(sims []*FlightSimulator, states []model.DroneState,
 		if c.evade[s.DroneID] {
 			stillClose := false
 			for _, o := range states {
-				if o.DroneID == s.DroneID {
+				if o.DroneID == s.DroneID || o.Status == "staged" {
 					continue
 				}
 				if collision.Distance3D(s, o) <= c.cfg.ClearM {
@@ -93,7 +102,7 @@ func (c *Coordinator) Update(sims []*FlightSimulator, states []model.DroneState,
 		byID[sim.droneID] = sim
 	}
 	for _, s := range states {
-		want := next[s.DroneID]
+		want := s.Status != "staged" && next[s.DroneID]
 		sim := byID[s.DroneID]
 		if sim == nil {
 			continue

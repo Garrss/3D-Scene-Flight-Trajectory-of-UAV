@@ -256,7 +256,7 @@ const DroneEntity = memo(function DroneEntity({
   )
 })
 
-export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone, onReturnDroneToBase, mission, waypointEditMode, waypointAltitude, onAddWaypoint, hiddenRouteId, mission, alerts = [] }: Props) {
+export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone, onReturnDroneToBase, mission, waypointEditMode, waypointAltitude, onAddWaypoint, hiddenRouteId, alerts = [] }: Props) {
   const viewerRef = useRef<CesiumViewer | null>(null)
   const [followMode, setFollowMode] = useState<FollowMode>('chase')
   const [weather, setWeather] = useState<WeatherMode>('clear')

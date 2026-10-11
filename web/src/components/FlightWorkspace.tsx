@@ -110,10 +110,9 @@ export default function FlightWorkspace() {
         droneIds={droneIds}
         selectedId={selectedId}
         onSelectDrone={setSelectedId}
-        mission={mission}
+        mission={displayMission}
         alerts={alerts}
         onReturnDroneToBase={returnDroneToBase}
-        mission={displayMission}
         waypointEditMode={editingRoute}
         waypointAltitude={waypointAltitude}
         onAddWaypoint={addWaypoint}

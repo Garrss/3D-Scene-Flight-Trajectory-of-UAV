@@ -32,6 +32,8 @@ type FlightSimulator struct {
 	launched         bool
 	outbound         bool
 	returningBase    bool
+	avoidanceActive  bool
+	avoidanceOffset  float64
 }
 
 func NewFlightSimulator(cfg config.DroneConfig, tickInterval time.Duration) *FlightSimulator {
@@ -193,6 +195,8 @@ func (fs *FlightSimulator) SetAvoidance(active bool, offsetAlt float64) {
 	if !active {
 		// Altitude itself converges back via Tick; flag clears at once.
 	}
+}
+
 // UpdateRoute stages route changes until the drone reaches its next waypoint.
 // Staged drones use the new route immediately for their next dispatch.
 func (fs *FlightSimulator) UpdateRoute(route []model.Waypoint) {

@@ -76,7 +76,7 @@ function pairId(a: string, b: string): string {
  * Simulation/visualization only — never a flight-safety signal.
  */
 export function detectCollisions(
-  fleet: Record<string, Pick<DroneState, 'droneId' | 'lng' | 'lat' | 'alt' | 'heading' | 'speed' | 'avoidanceActive'>>,
+  fleet: Record<string, Pick<DroneState, 'droneId' | 'lng' | 'lat' | 'alt' | 'heading' | 'speed' | 'avoidanceActive' | 'status'>>,
   thresholds: CollisionThresholds = DEFAULT_THRESHOLDS,
   nowSec = Math.floor(Date.now() / 1000),
 ): CollisionAlert[] {
@@ -86,6 +86,7 @@ export function detectCollisions(
     for (let j = i + 1; j < ids.length; j++) {
       const a = fleet[ids[i]]
       const b = fleet[ids[j]]
+      if (a.status === 'staged' || b.status === 'staged') continue
       const dist = distance3DM(a, b)
       const predicted = predictClosestApproachM(a, b, thresholds.horizonS)
       let severity: CollisionAlert['severity'] | null = null

@@ -104,8 +104,14 @@ func PredictClosestApproach(a, b model.DroneState, horizonS float64) float64 {
 func Detect(states []model.DroneState, cfg Config, now time.Time) []model.Alert {
 	alerts := []model.Alert{}
 	for i := 0; i < len(states); i++ {
+		if states[i].Status == "staged" {
+			continue // Parked at the launch base; exclude from collision detection.
+		}
 		for j := i + 1; j < len(states); j++ {
 			a, b := states[i], states[j]
+			if a.Status == "staged" || b.Status == "staged" {
+				continue
+			}
 			dist := Distance3D(a, b)
 			severity, ok := Classify(dist, cfg)
 			if !ok {

@@ -68,7 +68,8 @@ var route3 = []model.Waypoint{
 }
 
 var defaultMission = Mission{
-	Name: "Shenzhen UAV Patrol Demo",
+	Name:        "Shenzhen UAV Patrol Demo",
+	LaunchPoint: defaultLaunchPoint,
 	Drones: []DroneConfig{
 		{ID: "uav-001", Name: "Core route", Color: "#00ffff", Speed: 15.0, Route: route1},
 		{ID: "uav-002", Name: "Coastal route", Color: "#ff6b35", Speed: 12.0, Route: route2},
