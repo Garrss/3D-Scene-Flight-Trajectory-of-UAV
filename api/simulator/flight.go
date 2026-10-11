@@ -30,6 +30,7 @@ type FlightSimulator struct {
 	launchPoint      model.Waypoint
 	launched         bool
 	outbound         bool
+	returningBase    bool
 }
 
 func NewFlightSimulator(cfg config.DroneConfig, tickInterval time.Duration) *FlightSimulator {
@@ -74,6 +75,10 @@ func (fs *FlightSimulator) Tick() model.DroneState {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 	if !fs.launched {
+		return fs.state
+	}
+	if fs.returningBase {
+		fs.tickReturnToBase()
 		return fs.state
 	}
 	if fs.outbound {
@@ -165,6 +170,52 @@ func (fs *FlightSimulator) Tick() model.DroneState {
 	return fs.state
 }
 
+// ReturnToBase overrides the current flight mode and sends this drone to its launch point.
+func (fs *FlightSimulator) ReturnToBase() {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	if !fs.launched {
+		return
+	}
+	fs.outbound = false
+	fs.returningBase = true
+	fs.mode = "auto"
+	fs.manualKeys = make(map[string]bool)
+	fs.manualLastUpdate = time.Time{}
+	fs.state.Mode = "returning-to-base"
+	fs.state.Status = "returning-to-base"
+	fs.state.Timestamp = time.Now().Unix()
+}
+
+func (fs *FlightSimulator) tickReturnToBase() {
+	distance := haversine(fs.state.Lat, fs.state.Lng, fs.launchPoint.Lat, fs.launchPoint.Lng)
+	step := fs.speed * fs.tickInterval.Seconds()
+	if distance <= step || distance < 0.5 {
+		fs.state.Lng = fs.launchPoint.Lng
+		fs.state.Lat = fs.launchPoint.Lat
+		fs.state.Alt = fs.launchPoint.Alt
+		fs.state.Speed = 0
+		fs.state.Status = "staged"
+		fs.state.Mode = "auto"
+		fs.currentIdx = 0
+		fs.progress = 0
+		fs.launched = false
+		fs.returningBase = false
+		fs.state.Timestamp = time.Now().Unix()
+		return
+	}
+
+	ratio := step / distance
+	fs.state.Heading = bearing(fs.state.Lat, fs.state.Lng, fs.launchPoint.Lat, fs.launchPoint.Lng)
+	fs.state.Lng = lerp(fs.state.Lng, fs.launchPoint.Lng, ratio)
+	fs.state.Lat = lerp(fs.state.Lat, fs.launchPoint.Lat, ratio)
+	fs.state.Alt = lerp(fs.state.Alt, fs.launchPoint.Alt, ratio)
+	fs.state.Speed = fs.speed
+	fs.state.Status = "returning-to-base"
+	fs.state.Mode = "returning-to-base"
+	fs.state.Timestamp = time.Now().Unix()
+}
+
 func (fs *FlightSimulator) Launch() {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
@@ -199,7 +250,7 @@ func (fs *FlightSimulator) tickOutbound() {
 func (fs *FlightSimulator) SetManual(keys []string) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
-	if !fs.launched || fs.outbound {
+	if !fs.launched || fs.outbound || fs.returningBase {
 		return
 	}
 	now := time.Now()
@@ -222,7 +273,7 @@ func (fs *FlightSimulator) SetManual(keys []string) {
 func (fs *FlightSimulator) ReturnToRoute() {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
-	if !fs.launched || fs.outbound {
+	if !fs.launched || fs.outbound || fs.returningBase {
 		return
 	}
 	bestDistance := math.Inf(1)

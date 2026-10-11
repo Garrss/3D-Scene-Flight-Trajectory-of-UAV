@@ -10,7 +10,7 @@ export interface DroneState {
   battery: number
   timestamp: number
   status?: string
-  mode?: 'auto' | 'manual' | 'returning'
+  mode?: 'auto' | 'manual' | 'returning' | 'returning-to-base'
   waypointIndex?: number
 }
 

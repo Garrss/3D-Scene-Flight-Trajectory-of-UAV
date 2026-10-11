@@ -260,6 +260,12 @@ button:focus-visible {
   opacity: 0.5;
 }
 
+.flight-mode-control button:last-of-type {
+  color: #fff;
+  border-color: #f2a65a;
+  background: #8b4f22;
+}
+
 .hud-panel {
   position: absolute;
   z-index: 999;
@@ -276,6 +282,32 @@ button:focus-visible {
   flex-direction: column;
   gap: 8px;
   overflow-y: auto;
+}
+
+.scene-controls__drone-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.scene-controls__drone-row .scene-controls__drone {
+  flex: 1;
+}
+
+.scene-controls__drone-return {
+  padding: 6px 7px;
+  border: 1px solid rgba(242, 166, 90, 0.65);
+  border-radius: 5px;
+  color: #ffd0a2;
+  background: rgba(92, 49, 22, 0.78);
+  cursor: pointer;
+  font: 11px Consolas, monospace;
+  white-space: nowrap;
+}
+
+.scene-controls__drone-return:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 /* Digital twin workspace */
@@ -910,14 +942,45 @@ button:focus-visible {
     backdrop-filter: blur(8px);
   }
 
+  .flight-mode-control {
+    bottom: calc(48vh + 18px);
+    width: calc(100% - 24px);
+    max-width: 520px;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .flight-mode-control button {
+    padding: 7px 8px;
+    font-size: 11px;
+  }
+
   .scene-controls__mode {
     grid-column: 1 / -1;
   }
 
   .scene-controls__separator,
-  .scene-controls__label,
-  .scene-controls__drone {
+  .scene-controls__label {
     display: none !important;
+  }
+
+  .scene-controls__drone-row {
+    min-width: 0;
+  }
+
+  .scene-controls__drone-row .scene-controls__drone {
+    display: flex !important;
+    min-width: 0;
+    padding: 6px 5px !important;
+    overflow: hidden;
+    font-size: 10px !important;
+  }
+
+  .scene-controls__drone-return {
+    padding: 6px 4px;
+    font-size: 9px;
   }
 
   .scene-controls__action {

@@ -81,14 +81,14 @@
 | `speed` | number | 当前模拟速度，米/秒 |
 | `battery` | number | 模拟电量百分比 |
 | `timestamp` | integer | 状态生成时间，Unix 秒 |
-| `status` | string | `staged`、`launching`、`flying`、`manual` 或 `returning` |
+| `status` | string | `staged`、`launching`、`flying`、`manual`、`returning` 或 `returning-to-base` |
 | `waypointIndex` | integer | 当前航段起点索引 |
 
 ## WebSocket 遥测
 
 `GET /ws`
 
-握手成功后，服务按 `TICK_INTERVAL` 持续发送文本帧。每一帧都是与 `/api/state` 相同结构的完整 JSON 数组。客户端可发送 `{"type":"launch","droneId":"uav-001"}` 单独放飞无人机，或发送 `{"type":"launch-all"}` 放飞所有待命无人机。放飞后无人机先飞往自己的航线首点，再沿既有航线巡航。
+握手成功后，服务按 `TICK_INTERVAL` 持续发送文本帧。每一帧都是与 `/api/state` 相同结构的完整 JSON 数组。客户端可发送 `{"type":"launch","droneId":"uav-001"}` 单独放飞无人机，或发送 `{"type":"launch-all"}` 放飞所有待命无人机。放飞后无人机先飞往自己的航线首点，再沿既有航线巡航。发送 `{"type":"return-to-base","droneId":"uav-001"}` 可单独召回无人机；`{"type":"return-all-to-base"}` 会召回全队。召回会取消对应无人机当前航线和手动控制，直接返回共用基地；到达后停留在基地待命。
 
 浏览器示例：
 

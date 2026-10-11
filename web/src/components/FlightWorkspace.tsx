@@ -62,6 +62,20 @@ export default function FlightWorkspace() {
     }
   }
 
+  const returnFleetToBase = () => {
+    heldKeys.current.clear()
+    setManual(false)
+    sendControl({ type: 'return-all-to-base' })
+  }
+
+  const returnDroneToBase = (droneId: string) => {
+    if (droneId === selectedId) {
+      heldKeys.current.clear()
+      setManual(false)
+    }
+    sendControl({ type: 'return-to-base', droneId })
+  }
+
   return (
     <section className="project-workspace flight-workspace" aria-label="无人机飞行轨迹项目">
       <CesiumScene
@@ -69,6 +83,7 @@ export default function FlightWorkspace() {
         droneIds={droneIds}
         selectedId={selectedId}
         onSelectDrone={setSelectedId}
+        onReturnDroneToBase={returnDroneToBase}
         mission={mission}
       />
       <div className="flight-mode-control">
@@ -86,8 +101,14 @@ export default function FlightWorkspace() {
             Launch all ({stagedCount})
           </button>
         )}
+        <button
+          onClick={returnFleetToBase}
+          disabled={!connected || droneIds.every((id) => !fleet[id] || fleet[id].status === 'staged')}
+        >
+          Return all to base
+        </button>
         <span>
-          {manual ? 'Manual · arrows to fly' : selectedDrone?.status === 'staged' ? 'At UAV launch base' : selectedDrone?.status === 'launching' ? 'Flying to assigned route' : selectedDrone?.mode === 'returning' ? 'Returning to route' : 'Auto route'}
+          {manual ? 'Manual · arrows to fly' : selectedDrone?.status === 'staged' ? 'At UAV launch base' : selectedDrone?.status === 'launching' ? 'Flying to assigned route' : selectedDrone?.status === 'returning-to-base' ? 'Returning to base' : selectedDrone?.mode === 'returning' ? 'Returning to route' : 'Auto route'}
         </span>
       </div>
       <HUD

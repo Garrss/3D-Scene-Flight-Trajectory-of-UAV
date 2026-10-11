@@ -144,6 +144,7 @@ interface Props {
   droneIds: string[]
   selectedId: string
   onSelectDrone: (id: string) => void
+  onReturnDroneToBase: (id: string) => void
   mission: Mission | null
 }
 
@@ -231,7 +232,7 @@ function DroneEntity({
   )
 }
 
-export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone, mission }: Props) {
+export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone, onReturnDroneToBase, mission }: Props) {
   const viewerRef = useRef<CesiumViewer | null>(null)
   const [followMode, setFollowMode] = useState<FollowMode>('chase')
   const [weather, setWeather] = useState<WeatherMode>('clear')
@@ -460,33 +461,45 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
           const c = droneColors.get(id) ?? DRONE_DEFAULT_COLOR
           const isActive = id === selectedId
           return (
-            <button
-              key={id}
-              className="scene-controls__drone"
-              onClick={() => onSelectDrone(id)}
-              style={{
-                padding: '6px 12px',
-                fontSize: 13,
-                fontWeight: isActive ? 'bold' : 'normal',
-                fontFamily: 'monospace',
-                background: isActive ? `rgba(${c.red * 255},${c.green * 255},${c.blue * 255},0.25)` : 'rgba(0,0,0,0.7)',
-                color: isActive ? `rgb(${c.red * 255},${c.green * 255},${c.blue * 255})` : '#888',
-                border: isActive ? `2px solid rgb(${c.red * 255},${c.green * 255},${c.blue * 255})` : '1px solid #555',
-                borderRadius: 6,
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              <span style={{
-                width: 8, height: 8, borderRadius: '50%',
-                background: `rgb(${c.red * 255},${c.green * 255},${c.blue * 255})`,
-                boxShadow: isActive ? `0 0 6px rgb(${c.red * 255},${c.green * 255},${c.blue * 255})` : 'none',
-              }} />
-              {id.toUpperCase()}
-            </button>
+            <div className="scene-controls__drone-row" key={id}>
+              <button
+                type="button"
+                className="scene-controls__drone"
+                onClick={() => onSelectDrone(id)}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: 13,
+                  fontWeight: isActive ? 'bold' : 'normal',
+                  fontFamily: 'monospace',
+                  background: isActive ? `rgba(${c.red * 255},${c.green * 255},${c.blue * 255},0.25)` : 'rgba(0,0,0,0.7)',
+                  color: isActive ? `rgb(${c.red * 255},${c.green * 255},${c.blue * 255})` : '#888',
+                  border: isActive ? `2px solid rgb(${c.red * 255},${c.green * 255},${c.blue * 255})` : '1px solid #555',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: `rgb(${c.red * 255},${c.green * 255},${c.blue * 255})`,
+                  boxShadow: isActive ? `0 0 6px rgb(${c.red * 255},${c.green * 255},${c.blue * 255})` : 'none',
+                }} />
+                {id.toUpperCase()}
+              </button>
+              <button
+                type="button"
+                className="scene-controls__drone-return"
+                title={`Return ${id.toUpperCase()} to base`}
+                aria-label={`Return ${id.toUpperCase()} to base`}
+                disabled={!fleet[id] || fleet[id].status === 'staged' || fleet[id].status === 'returning-to-base'}
+                onClick={() => onReturnDroneToBase(id)}
+              >
+                To base
+              </button>
+            </div>
           )
         })}
 

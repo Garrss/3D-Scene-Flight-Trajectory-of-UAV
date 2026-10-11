@@ -144,6 +144,12 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			}
 			continue
 		}
+		if control.Type == "return-all-to-base" {
+			for _, sim := range h.simulators {
+				sim.ReturnToBase()
+			}
+			continue
+		}
 		if control.Drone == "" {
 			continue
 		}
@@ -158,6 +164,8 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 				sim.ReturnToRoute()
 			case "launch":
 				sim.Launch()
+			case "return-to-base":
+				sim.ReturnToBase()
 			}
 			break
 		}
