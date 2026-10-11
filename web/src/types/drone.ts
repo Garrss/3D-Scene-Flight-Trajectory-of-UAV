@@ -10,6 +10,7 @@ export interface DroneState {
   battery: number
   timestamp: number
   status?: string
+  mode?: 'auto' | 'manual' | 'returning' | 'returning-to-base'
   waypointIndex?: number
   /** Simulated demo avoidance flag (visualization only, not flight safety). */
   avoidanceActive?: boolean
@@ -52,5 +53,6 @@ export interface DroneConfig {
 
 export interface Mission {
   name: string
+  launchPoint?: Waypoint
   drones: DroneConfig[]
 }

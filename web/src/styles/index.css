@@ -227,6 +227,73 @@ button:focus-visible {
   right: 16px;
 }
 
+.flight-mode-control {
+  position: absolute;
+  z-index: 1000;
+  left: 50%;
+  bottom: 28px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(77, 216, 181, 0.4);
+  border-radius: 6px;
+  color: #c4d5d0;
+  background: rgba(8, 19, 21, 0.88);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+  font: 12px Consolas, monospace;
+}
+
+.flight-mode-control button {
+  padding: 7px 10px;
+  border: 1px solid #4dd8b5;
+  border-radius: 4px;
+  color: #071012;
+  background: #69e5c4;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.flight-mode-control button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.flight-mode-control button:last-of-type {
+  color: #fff;
+  border-color: #f2a65a;
+  background: #8b4f22;
+}
+
+.waypoint-editor {
+  position: absolute;
+  z-index: 1001;
+  bottom: 86px;
+  right: 16px;
+  width: min(360px, calc(100vw - 32px));
+  max-height: calc(100% - 190px);
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid rgba(77, 216, 181, 0.5);
+  border-radius: 6px;
+  color: #d5e4df;
+  background: rgba(8, 19, 21, 0.94);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+  font: 12px Consolas, monospace;
+}
+.waypoint-editor header, .waypoint-editor footer, .waypoint-editor li {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.waypoint-editor p { line-height: 1.45; color: #aebfba; }
+.waypoint-editor ol { padding-left: 24px; }
+.waypoint-editor li { flex-wrap: wrap; margin: 8px 0; }
+.waypoint-editor label { display: flex; align-items: center; gap: 6px; }
+.waypoint-editor input { width: 76px; padding: 4px; color: #eaf8f4; background: #132327; border: 1px solid #45615d; border-radius: 3px; }
+.waypoint-editor button { padding: 6px 8px; border: 1px solid #4dd8b5; border-radius: 4px; color: #071012; background: #69e5c4; cursor: pointer; }
+.waypoint-editor button:disabled { opacity: 0.5; cursor: not-allowed; }
+.waypoint-editor__error { color: #ff9c90 !important; }
+
 .hud-panel {
   position: absolute;
   z-index: 999;
@@ -243,6 +310,32 @@ button:focus-visible {
   flex-direction: column;
   gap: 8px;
   overflow-y: auto;
+}
+
+.scene-controls__drone-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.scene-controls__drone-row .scene-controls__drone {
+  flex: 1;
+}
+
+.scene-controls__drone-return {
+  padding: 6px 7px;
+  border: 1px solid rgba(242, 166, 90, 0.65);
+  border-radius: 5px;
+  color: #ffd0a2;
+  background: rgba(92, 49, 22, 0.78);
+  cursor: pointer;
+  font: 11px Consolas, monospace;
+  white-space: nowrap;
+}
+
+.scene-controls__drone-return:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 /* Digital twin workspace */
@@ -877,14 +970,47 @@ button:focus-visible {
     backdrop-filter: blur(8px);
   }
 
+  .flight-mode-control {
+    bottom: calc(48vh + 18px);
+    width: calc(100% - 24px);
+    max-width: 520px;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .flight-mode-control button {
+    padding: 7px 8px;
+    font-size: 11px;
+  }
+
+  .waypoint-editor { top: auto; bottom: calc(48vh + 68px); right: 8px; max-height: 42vh; width: min(340px, calc(100% - 16px)); }
+
   .scene-controls__mode {
     grid-column: 1 / -1;
   }
 
   .scene-controls__separator,
-  .scene-controls__label,
-  .scene-controls__drone {
+  .scene-controls__label {
     display: none !important;
+  }
+
+  .scene-controls__drone-row {
+    min-width: 0;
+  }
+
+  .scene-controls__drone-row .scene-controls__drone {
+    display: flex !important;
+    min-width: 0;
+    padding: 6px 5px !important;
+    overflow: hidden;
+    font-size: 10px !important;
+  }
+
+  .scene-controls__drone-return {
+    padding: 6px 4px;
+    font-size: 9px;
   }
 
   .scene-controls__action {

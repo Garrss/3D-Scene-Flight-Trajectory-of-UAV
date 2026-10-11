@@ -84,6 +84,9 @@ func LoadMission(path string) (Mission, error) {
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return Mission{}, errors.New("decode mission file: multiple JSON values are not allowed")
 	}
+	if mission.LaunchPoint == (model.Waypoint{}) {
+		mission.LaunchPoint = defaultLaunchPoint
+	}
 	if err := ValidateMission(mission); err != nil {
 		return Mission{}, err
 	}
@@ -96,6 +99,9 @@ func ValidateMission(mission Mission) error {
 	}
 	if len(mission.Drones) == 0 {
 		return errors.New("mission must define at least one drone")
+	}
+	if mission.LaunchPoint.Lng < -180 || mission.LaunchPoint.Lng > 180 || mission.LaunchPoint.Lat < -90 || mission.LaunchPoint.Lat > 90 || mission.LaunchPoint.Alt < 0 {
+		return errors.New("launchPoint coordinates or altitude are out of range")
 	}
 
 	seen := make(map[string]struct{}, len(mission.Drones))
@@ -110,34 +116,41 @@ func ValidateMission(mission Mission) error {
 		if drone.Speed <= 0 {
 			return fmt.Errorf("drone %q speed must be positive", drone.ID)
 		}
-		if len(drone.Route) < 2 {
-			return fmt.Errorf("drone %q route must contain at least two waypoints", drone.ID)
-		}
-		hasMovement := false
-		for waypointIndex, waypoint := range drone.Route {
-			if waypoint.Lng < -180 || waypoint.Lng > 180 {
-				return fmt.Errorf("drone %q route[%d].lng is out of range", drone.ID, waypointIndex)
-			}
-			if waypoint.Lat < -90 || waypoint.Lat > 90 {
-				return fmt.Errorf("drone %q route[%d].lat is out of range", drone.ID, waypointIndex)
-			}
-			if waypoint.Alt < 0 {
-				return fmt.Errorf("drone %q route[%d].alt must not be negative", drone.ID, waypointIndex)
-			}
-			if waypointIndex > 0 {
-				previous := drone.Route[waypointIndex-1]
-				hasMovement = hasMovement || previous.Lng != waypoint.Lng || previous.Lat != waypoint.Lat
-			}
-		}
-		if !hasMovement {
-			return fmt.Errorf("drone %q route must contain at least one non-zero segment", drone.ID)
+		if err := ValidateRoute(drone.ID, drone.Route); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
+func ValidateRoute(droneID string, route []model.Waypoint) error {
+	if len(route) < 2 {
+		return fmt.Errorf("drone %q route must contain at least two waypoints", droneID)
+	}
+	hasMovement := false
+	for waypointIndex, waypoint := range route {
+		if waypoint.Lng < -180 || waypoint.Lng > 180 {
+			return fmt.Errorf("drone %q route[%d].lng is out of range", droneID, waypointIndex)
+		}
+		if waypoint.Lat < -90 || waypoint.Lat > 90 {
+			return fmt.Errorf("drone %q route[%d].lat is out of range", droneID, waypointIndex)
+		}
+		if waypoint.Alt < 0 {
+			return fmt.Errorf("drone %q route[%d].alt must not be negative", droneID, waypointIndex)
+		}
+		if waypointIndex > 0 {
+			previous := route[waypointIndex-1]
+			hasMovement = hasMovement || previous.Lng != waypoint.Lng || previous.Lat != waypoint.Lat
+		}
+	}
+	if !hasMovement {
+		return fmt.Errorf("drone %q route must contain at least one non-zero segment", droneID)
+	}
+	return nil
+}
+
 func cloneMission(mission Mission) Mission {
-	cloned := Mission{Name: mission.Name, Drones: make([]DroneConfig, len(mission.Drones))}
+	cloned := Mission{Name: mission.Name, LaunchPoint: mission.LaunchPoint, Drones: make([]DroneConfig, len(mission.Drones))}
 	for i, drone := range mission.Drones {
 		cloned.Drones[i] = drone
 		cloned.Drones[i].Route = append([]model.Waypoint(nil), drone.Route...)

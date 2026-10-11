@@ -5,17 +5,22 @@ import "github.com/lien0219/3D-Scene-Flight-Trajectory-of-UAV/api/model"
 const InitBattery = 100.0
 
 type Mission struct {
-	Name   string        `json:"name"`
-	Drones []DroneConfig `json:"drones"`
+	Name        string         `json:"name"`
+	LaunchPoint model.Waypoint `json:"launchPoint"`
+	Drones      []DroneConfig  `json:"drones"`
 }
 
 type DroneConfig struct {
-	ID    string           `json:"id"`
-	Name  string           `json:"name"`
-	Color string           `json:"color"`
-	Speed float64          `json:"speed"`
-	Route []model.Waypoint `json:"route"`
+	ID          string           `json:"id"`
+	Name        string           `json:"name"`
+	Color       string           `json:"color"`
+	Speed       float64          `json:"speed"`
+	Route       []model.Waypoint `json:"route"`
+	LaunchPoint model.Waypoint   `json:"-"`
 }
+
+// Shared hardcoded UAV launch base for the flight project, independent of the digital twin.
+var defaultLaunchPoint = model.Waypoint{Lng: 113.9325, Lat: 22.5317, Alt: 50}
 
 // 深圳核心航线（UAV-001）
 var route1 = []model.Waypoint{

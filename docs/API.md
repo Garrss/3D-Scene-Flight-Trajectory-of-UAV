@@ -30,6 +30,7 @@
 ```json
 {
   "name": "深圳无人机巡航演示",
+  "launchPoint": {"lng": 113.9325, "lat": 22.5317, "alt": 50},
   "drones": [
     {
       "id": "uav-001",
@@ -46,6 +47,8 @@
 ```
 
 ## 当前状态
+
+`PUT /api/drones/{id}/route` 更新指定无人机的监控航线。请求体为 `{"route":[{"lng":113.93,"lat":22.53,"alt":100},{"lng":113.94,"lat":22.52,"alt":100}]}`。航线至少需要两个航点、坐标须在有效范围内，并且至少包含一段不同的水平位置。无效请求返回 `400`，未知无人机返回 `404`。飞行中的无人机在到达下一个航点后采用新航线；尚未起飞的无人机下次派遣时采用新航线。
 
 `GET /api/state`
 
@@ -98,7 +101,7 @@
 | `speed` | number | 当前模拟速度，米/秒 |
 | `battery` | number | 模拟电量百分比 |
 | `timestamp` | integer | 状态生成时间，Unix 秒 |
-| `status` | string | 当前为 `flying` |
+| `status` | string | `staged`、`launching`、`flying`、`manual`、`returning` 或 `returning-to-base` |
 | `waypointIndex` | integer | 当前航段起点索引 |
 | `avoidanceActive` | boolean | 仿真避障偏移是否生效 |
 
@@ -112,7 +115,7 @@
 
 `GET /ws`
 
-握手成功后，服务按 `TICK_INTERVAL` 持续发送文本帧。每一帧都是与 `/api/state` 相同结构的版本化 JSON 包。客户端不需要发送消息。旧版数组载荷仍可被前端解析，但新版服务始终发送版本化包。
+握手成功后，服务按 `TICK_INTERVAL` 持续发送文本帧。每一帧都是与 `/api/state` 相同结构的完整 JSON 数组。客户端可发送 `{"type":"launch","droneId":"uav-001"}` 单独放飞无人机，或发送 `{"type":"launch-all"}` 放飞所有待命无人机。放飞后无人机先飞往自己的航线首点，再沿既有航线巡航。发送 `{"type":"return-to-base","droneId":"uav-001"}` 可单独召回无人机；`{"type":"return-all-to-base"}` 会召回全队。召回会取消对应无人机当前航线和手动控制，直接返回共用基地；到达后停留在基地待命。
 
 浏览器示例：
 

@@ -26,6 +26,7 @@ type Hub struct {
 	coordinator    *simulator.Coordinator
 	safetyCfg      collision.Config
 	mission        config.Mission
+	missionMu      sync.RWMutex
 	tickInterval   time.Duration
 	allowedOrigins map[string]struct{}
 	origins        []string
@@ -43,8 +44,19 @@ const writeTimeout = 2 * time.Second
 const envelopeVersion = 1
 
 func NewHub(mission config.Mission, tickInterval time.Duration, allowedOrigins []string, cfgs ...collision.Config) *Hub {
+type controlMessage struct {
+	Type  string   `json:"type"`
+	Drone string   `json:"droneId"`
+	Keys  []string `json:"keys"`
+}
+
+func NewHub(mission config.Mission, tickInterval time.Duration, allowedOrigins []string) *Hub {
+	if mission.LaunchPoint == (model.Waypoint{}) {
+		mission.LaunchPoint = config.DefaultMission().LaunchPoint
+	}
 	sims := make([]*simulator.FlightSimulator, len(mission.Drones))
 	for i, cfg := range mission.Drones {
+		cfg.LaunchPoint = mission.LaunchPoint
 		sims[i] = simulator.NewFlightSimulator(cfg, tickInterval)
 	}
 	safety := collision.DefaultConfig()
@@ -192,8 +204,43 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	for {
-		_, _, err := conn.ReadMessage()
+		_, message, err := conn.ReadMessage()
 		if err != nil {
+			break
+		}
+		var control controlMessage
+		if json.Unmarshal(message, &control) != nil {
+			continue
+		}
+		if control.Type == "launch-all" {
+			for _, sim := range h.simulators {
+				sim.Launch()
+			}
+			continue
+		}
+		if control.Type == "return-all-to-base" {
+			for _, sim := range h.simulators {
+				sim.ReturnToBase()
+			}
+			continue
+		}
+		if control.Drone == "" {
+			continue
+		}
+		for _, sim := range h.simulators {
+			if sim.GetState().DroneID != control.Drone {
+				continue
+			}
+			switch control.Type {
+			case "manual":
+				sim.SetManual(control.Keys)
+			case "return":
+				sim.ReturnToRoute()
+			case "launch":
+				sim.Launch()
+			case "return-to-base":
+				sim.ReturnToBase()
+			}
 			break
 		}
 	}
@@ -216,9 +263,41 @@ func (h *Hub) HandleAlerts(w http.ResponseWriter, r *http.Request) {
 
 func (h *Hub) HandleConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	h.missionMu.RLock()
+	defer h.missionMu.RUnlock()
 	if err := json.NewEncoder(w).Encode(h.mission); err != nil {
 		log.Println("encode mission response:", err)
 	}
+}
+
+func (h *Hub) HandleDroneRoute(w http.ResponseWriter, r *http.Request) {
+	droneID := r.PathValue("id")
+	var request struct {
+		Route []model.Waypoint `json:"route"`
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		http.Error(w, "invalid route JSON", http.StatusBadRequest)
+		return
+	}
+	if err := config.ValidateRoute(droneID, request.Route); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	h.missionMu.Lock()
+	defer h.missionMu.Unlock()
+	for i := range h.mission.Drones {
+		if h.mission.Drones[i].ID != droneID {
+			continue
+		}
+		h.simulators[i].UpdateRoute(request.Route)
+		h.mission.Drones[i].Route = append([]model.Waypoint(nil), request.Route...)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(h.mission.Drones[i])
+		return
+	}
+	http.Error(w, "drone not found", http.StatusNotFound)
 }
 
 func (h *Hub) checkOrigin(r *http.Request) bool {

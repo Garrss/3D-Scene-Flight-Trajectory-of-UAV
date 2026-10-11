@@ -19,8 +19,11 @@ import {
   Credit,
   CreditDisplay,
   buildModuleUrl,
+  Cartographic,
+  ScreenSpaceEventHandler,
+  ScreenSpaceEventType,
 } from 'cesium'
-import type { CollisionAlert, DroneFleet, Mission } from '../types/drone'
+import type { CollisionAlert, DroneState, DroneFleet, Mission, Waypoint} from '../types/drone'
 import { DroneInterpolator, lerpAngleRad } from '../lib/DroneInterpolator'
 
 import droneModelUrl from '../assets/uav.gltf?url'
@@ -146,8 +149,13 @@ interface Props {
   droneIds: string[]
   selectedId: string
   onSelectDrone: (id: string) => void
+  onReturnDroneToBase: (id: string) => void
   mission: Mission | null
   alerts?: CollisionAlert[]
+  waypointEditMode: boolean
+  waypointAltitude: number
+  onAddWaypoint: (waypoint: Waypoint) => void
+  hiddenRouteId?: string
 }
 
 // Weather
@@ -248,7 +256,7 @@ const DroneEntity = memo(function DroneEntity({
   )
 })
 
-export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone, mission, alerts = [] }: Props) {
+export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone, onReturnDroneToBase, mission, waypointEditMode, waypointAltitude, onAddWaypoint, hiddenRouteId, mission, alerts = [] }: Props) {
   const viewerRef = useRef<CesiumViewer | null>(null)
   const [followMode, setFollowMode] = useState<FollowMode>('chase')
   const [weather, setWeather] = useState<WeatherMode>('clear')
@@ -264,11 +272,15 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
 
   const routeData = useMemo(() => (mission?.drones ?? []).map((drone) => {
     const color = Color.fromCssColorString(drone.color) ?? DRONE_DEFAULT_COLOR
+    const routeWaypoints = drone.route ?? []
+    const displayWaypoints = routeWaypoints.length > 1 ? [...routeWaypoints, routeWaypoints[0]] : routeWaypoints
     return {
       ...drone,
+      route: routeWaypoints,
       color,
       positions: Cartesian3.fromDegreesArrayHeights(
-        [...drone.route, drone.route[0]].flatMap(({ lng, lat, alt }) => [lng, lat, alt]),
+        [...(mission?.launchPoint && routeWaypoints.length > 0 ? [mission.launchPoint] : []), ...displayWaypoints]
+          .flatMap(({ lng, lat, alt }) => [lng, lat, alt]),
       ),
       waypointPositions: drone.route.map(({ lng, lat, alt }) => Cartesian3.fromDegrees(lng, lat, alt)),
       material: color.withAlpha(0.7),
@@ -345,6 +357,19 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
   followModeRef.current = followMode
   sceneModeRef.current = sceneMode
   selectedIdRef.current = selectedId
+
+  useEffect(() => {
+    const viewer = viewerRef.current
+    if (!viewer || !waypointEditMode) return
+    const handler = new ScreenSpaceEventHandler(viewer.scene.canvas)
+    handler.setInputAction((movement: { position: Cartesian2 }) => {
+      const cartesian = viewer.camera.pickEllipsoid(movement.position, viewer.scene.globe.ellipsoid)
+      if (!cartesian) return
+      const point = Cartographic.fromCartesian(cartesian)
+      onAddWaypoint({ lng: CesiumMath.toDegrees(point.longitude), lat: CesiumMath.toDegrees(point.latitude), alt: waypointAltitude })
+    }, ScreenSpaceEventType.LEFT_CLICK)
+    return () => handler.destroy()
+  }, [waypointEditMode, waypointAltitude, onAddWaypoint])
 
   useEffect(() => {
     for (const id of droneIds) {
@@ -562,33 +587,45 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
           const c = droneColors.get(id) ?? DRONE_DEFAULT_COLOR
           const isActive = id === selectedId
           return (
-            <button
-              key={id}
-              className="scene-controls__drone"
-              onClick={() => onSelectDrone(id)}
-              style={{
-                padding: '6px 12px',
-                fontSize: 13,
-                fontWeight: isActive ? 'bold' : 'normal',
-                fontFamily: 'monospace',
-                background: isActive ? `rgba(${c.red * 255},${c.green * 255},${c.blue * 255},0.25)` : 'rgba(0,0,0,0.7)',
-                color: isActive ? `rgb(${c.red * 255},${c.green * 255},${c.blue * 255})` : '#888',
-                border: isActive ? `2px solid rgb(${c.red * 255},${c.green * 255},${c.blue * 255})` : '1px solid #555',
-                borderRadius: 6,
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              <span style={{
-                width: 8, height: 8, borderRadius: '50%',
-                background: `rgb(${c.red * 255},${c.green * 255},${c.blue * 255})`,
-                boxShadow: isActive ? `0 0 6px rgb(${c.red * 255},${c.green * 255},${c.blue * 255})` : 'none',
-              }} />
-              {id.toUpperCase()}
-            </button>
+            <div className="scene-controls__drone-row" key={id}>
+              <button
+                type="button"
+                className="scene-controls__drone"
+                onClick={() => onSelectDrone(id)}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: 13,
+                  fontWeight: isActive ? 'bold' : 'normal',
+                  fontFamily: 'monospace',
+                  background: isActive ? `rgba(${c.red * 255},${c.green * 255},${c.blue * 255},0.25)` : 'rgba(0,0,0,0.7)',
+                  color: isActive ? `rgb(${c.red * 255},${c.green * 255},${c.blue * 255})` : '#888',
+                  border: isActive ? `2px solid rgb(${c.red * 255},${c.green * 255},${c.blue * 255})` : '1px solid #555',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: `rgb(${c.red * 255},${c.green * 255},${c.blue * 255})`,
+                  boxShadow: isActive ? `0 0 6px rgb(${c.red * 255},${c.green * 255},${c.blue * 255})` : 'none',
+                }} />
+                {id.toUpperCase()}
+              </button>
+              <button
+                type="button"
+                className="scene-controls__drone-return"
+                title={`Return ${id.toUpperCase()} to base`}
+                aria-label={`Return ${id.toUpperCase()} to base`}
+                disabled={!fleet[id] || fleet[id].status === 'staged' || fleet[id].status === 'returning-to-base'}
+                onClick={() => onReturnDroneToBase(id)}
+              >
+                To base
+              </button>
+            </div>
           )
         })}
 
@@ -630,6 +667,7 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
         navigationHelpButton={false}
         sceneModePicker={false}
         terrainProvider={flatTerrain}
+        style={waypointEditMode ? { cursor: 'crosshair' } : undefined}
         ref={(e) => {
           if (e?.cesiumElement && !viewerRef.current) handleViewerReady(e.cesiumElement)
         }}
@@ -642,15 +680,32 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
         ))}
 
         {/* All routes */}
+        {mission?.launchPoint && (
+          <Entity
+            key="uav-launch-base"
+            position={Cartesian3.fromDegrees(mission.launchPoint.lng, mission.launchPoint.lat, mission.launchPoint.alt)}
+            point={{ pixelSize: 12, color: Color.CYAN, outlineColor: Color.WHITE, outlineWidth: 2 }}
+            label={{
+              text: new ConstantProperty('UAV Launch Base'),
+              font: new ConstantProperty('bold 13px "Microsoft YaHei", sans-serif'),
+              fillColor: new ConstantProperty(Color.CYAN),
+              outlineColor: new ConstantProperty(Color.BLACK),
+              outlineWidth: new ConstantProperty(3),
+              disableDepthTestDistance: new ConstantProperty(Number.POSITIVE_INFINITY),
+            }}
+          />
+        )}
+
+        {/* 所有航线 */}
         {routeData.map((rd) => (
-          <Entity key={`route-${rd.id}`}>
+          rd.route.length > 0 && rd.id !== hiddenRouteId && <Entity key={`route-${rd.id}`}>
             <PolylineGraphics positions={rd.positions} width={3} material={rd.material} clampToGround={false} />
           </Entity>
         ))}
 
         {/* Route waypoints */}
         {routeData.map((rd) =>
-          rd.route.map((_, wi) => (
+          (rd.id === hiddenRouteId ? [] : rd.route).map((_, wi) => (
             <Entity
               key={`wp-${rd.id}-${wi}`}
               position={rd.waypointPositions[wi]}

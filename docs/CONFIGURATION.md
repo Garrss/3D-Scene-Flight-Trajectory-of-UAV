@@ -37,6 +37,7 @@ Vite 只会把 `VITE_` 前缀变量暴露给浏览器，因此这些值不能包
 ```json
 {
   "name": "自定义任务",
+  "launchPoint": { "lng": 113.9325, "lat": 22.5317, "alt": 50 },
   "drones": [
     {
       "id": "uav-demo",
@@ -57,6 +58,7 @@ Vite 只会把 `VITE_` 前缀变量暴露给浏览器，因此这些值不能包
 | 字段 | 类型 | 规则 |
 | --- | --- | --- |
 | `name` | string | 任务名称，非空 |
+| `launchPoint` | object | 所有无人机共用的待命坐标；省略时使用飞行项目内置基地 |
 | `drones` | array | 至少一架无人机 |
 | `drones[].id` | string | 非空且任务内唯一；也是遥测主键 |
 | `drones[].name` | string | 展示名称，建议非空 |
