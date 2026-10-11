@@ -32,5 +32,6 @@ export interface DroneConfig {
 
 export interface Mission {
   name: string
+  launchPoint?: Waypoint
   drones: DroneConfig[]
 }

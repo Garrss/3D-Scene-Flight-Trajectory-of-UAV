@@ -37,8 +37,12 @@ type controlMessage struct {
 }
 
 func NewHub(mission config.Mission, tickInterval time.Duration, allowedOrigins []string) *Hub {
+	if mission.LaunchPoint == (model.Waypoint{}) {
+		mission.LaunchPoint = config.DefaultMission().LaunchPoint
+	}
 	sims := make([]*simulator.FlightSimulator, len(mission.Drones))
 	for i, cfg := range mission.Drones {
+		cfg.LaunchPoint = mission.LaunchPoint
 		sims[i] = simulator.NewFlightSimulator(cfg, tickInterval)
 	}
 
@@ -131,7 +135,16 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		var control controlMessage
-		if json.Unmarshal(message, &control) != nil || control.Drone == "" {
+		if json.Unmarshal(message, &control) != nil {
+			continue
+		}
+		if control.Type == "launch-all" {
+			for _, sim := range h.simulators {
+				sim.Launch()
+			}
+			continue
+		}
+		if control.Drone == "" {
 			continue
 		}
 		for _, sim := range h.simulators {
@@ -143,6 +156,8 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 				sim.SetManual(control.Keys)
 			case "return":
 				sim.ReturnToRoute()
+			case "launch":
+				sim.Launch()
 			}
 			break
 		}

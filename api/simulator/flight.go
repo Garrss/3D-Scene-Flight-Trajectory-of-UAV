@@ -27,9 +27,22 @@ type FlightSimulator struct {
 	returnIdx        int
 	returnProg       float64
 	manualLastUpdate time.Time
+	launchPoint      model.Waypoint
+	launched         bool
+	outbound         bool
 }
 
 func NewFlightSimulator(cfg config.DroneConfig, tickInterval time.Duration) *FlightSimulator {
+	launchPoint := cfg.LaunchPoint
+	needsDispatch := launchPoint != (model.Waypoint{})
+	if !needsDispatch {
+		// Preserve route-first behavior for standalone simulator construction.
+		launchPoint = cfg.Route[0]
+	}
+	status := "flying"
+	if needsDispatch {
+		status = "staged"
+	}
 	fs := &FlightSimulator{
 		droneID:      cfg.ID,
 		route:        cfg.Route,
@@ -40,8 +53,10 @@ func NewFlightSimulator(cfg config.DroneConfig, tickInterval time.Duration) *Fli
 		tickInterval: tickInterval,
 		mode:         "auto",
 		manualKeys:   make(map[string]bool),
+		launchPoint:  launchPoint,
+		launched:     !needsDispatch,
 	}
-	wp := fs.route[0]
+	wp := fs.launchPoint
 	fs.state = model.DroneState{
 		DroneID: cfg.ID,
 		Lng:     wp.Lng,
@@ -49,7 +64,7 @@ func NewFlightSimulator(cfg config.DroneConfig, tickInterval time.Duration) *Fli
 		Alt:     wp.Alt,
 		Speed:   0,
 		Battery: fs.battery,
-		Status:  "flying",
+		Status:  status,
 		Mode:    "auto",
 	}
 	return fs
@@ -58,6 +73,13 @@ func NewFlightSimulator(cfg config.DroneConfig, tickInterval time.Duration) *Fli
 func (fs *FlightSimulator) Tick() model.DroneState {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
+	if !fs.launched {
+		return fs.state
+	}
+	if fs.outbound {
+		fs.tickOutbound()
+		return fs.state
+	}
 
 	if fs.mode == "manual" {
 		fs.tickManual()
@@ -143,10 +165,43 @@ func (fs *FlightSimulator) Tick() model.DroneState {
 	return fs.state
 }
 
+func (fs *FlightSimulator) Launch() {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	if fs.launched {
+		return
+	}
+	fs.launched, fs.outbound = true, true
+	fs.state.Status = "launching"
+	fs.state.Timestamp = time.Now().Unix()
+}
+
+func (fs *FlightSimulator) tickOutbound() {
+	target := fs.route[0]
+	distance := haversine(fs.state.Lat, fs.state.Lng, target.Lat, target.Lng)
+	step := fs.speed * fs.tickInterval.Seconds()
+	if distance <= step || distance < 0.5 {
+		fs.state.Lng, fs.state.Lat, fs.state.Alt = target.Lng, target.Lat, target.Alt
+		fs.outbound = false
+	} else if distance > 0 {
+		ratio := step / distance
+		fs.state.Heading = bearing(fs.state.Lat, fs.state.Lng, target.Lat, target.Lng)
+		fs.state.Lng = lerp(fs.state.Lng, target.Lng, ratio)
+		fs.state.Lat = lerp(fs.state.Lat, target.Lat, ratio)
+		fs.state.Alt = lerp(fs.state.Alt, target.Alt, ratio)
+	}
+	fs.state.Speed = fs.speed
+	fs.state.Status, fs.state.Mode = "launching", "auto"
+	fs.state.Timestamp = time.Now().Unix()
+}
+
 // SetManual switches to heading-relative manual control and updates the held keys.
 func (fs *FlightSimulator) SetManual(keys []string) {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
+	if !fs.launched || fs.outbound {
+		return
+	}
 	now := time.Now()
 	if fs.mode == "manual" {
 		fs.updateManualPosition(now)
@@ -167,6 +222,9 @@ func (fs *FlightSimulator) SetManual(keys []string) {
 func (fs *FlightSimulator) ReturnToRoute() {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
+	if !fs.launched || fs.outbound {
+		return
+	}
 	bestDistance := math.Inf(1)
 	for i := range fs.route {
 		a, b := fs.route[i], fs.route[(i+1)%len(fs.route)]

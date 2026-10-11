@@ -67,6 +67,9 @@ func LoadMission(path string) (Mission, error) {
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return Mission{}, errors.New("decode mission file: multiple JSON values are not allowed")
 	}
+	if mission.LaunchPoint == (model.Waypoint{}) {
+		mission.LaunchPoint = defaultLaunchPoint
+	}
 	if err := ValidateMission(mission); err != nil {
 		return Mission{}, err
 	}
@@ -79,6 +82,9 @@ func ValidateMission(mission Mission) error {
 	}
 	if len(mission.Drones) == 0 {
 		return errors.New("mission must define at least one drone")
+	}
+	if mission.LaunchPoint.Lng < -180 || mission.LaunchPoint.Lng > 180 || mission.LaunchPoint.Lat < -90 || mission.LaunchPoint.Lat > 90 || mission.LaunchPoint.Alt < 0 {
+		return errors.New("launchPoint coordinates or altitude are out of range")
 	}
 
 	seen := make(map[string]struct{}, len(mission.Drones))
@@ -120,7 +126,7 @@ func ValidateMission(mission Mission) error {
 }
 
 func cloneMission(mission Mission) Mission {
-	cloned := Mission{Name: mission.Name, Drones: make([]DroneConfig, len(mission.Drones))}
+	cloned := Mission{Name: mission.Name, LaunchPoint: mission.LaunchPoint, Drones: make([]DroneConfig, len(mission.Drones))}
 	for i, drone := range mission.Drones {
 		cloned.Drones[i] = drone
 		cloned.Drones[i].Route = append([]model.Waypoint(nil), drone.Route...)

@@ -251,7 +251,8 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
       ...drone,
       color,
       positions: Cartesian3.fromDegreesArrayHeights(
-        [...drone.route, drone.route[0]].flatMap(({ lng, lat, alt }) => [lng, lat, alt]),
+        [...(mission?.launchPoint ? [mission.launchPoint] : []), ...drone.route, drone.route[0]]
+          .flatMap(({ lng, lat, alt }) => [lng, lat, alt]),
       ),
       waypointPositions: drone.route.map(({ lng, lat, alt }) => Cartesian3.fromDegrees(lng, lat, alt)),
       material: color.withAlpha(0.7),
@@ -537,6 +538,22 @@ export default function CesiumScene({ fleet, droneIds, selectedId, onSelectDrone
         {landmarkEntities.map((lm, i) => (
           <Entity key={`lm-${i}`} position={lm.position} label={lm.label} />
         ))}
+
+        {mission?.launchPoint && (
+          <Entity
+            key="uav-launch-base"
+            position={Cartesian3.fromDegrees(mission.launchPoint.lng, mission.launchPoint.lat, mission.launchPoint.alt)}
+            point={{ pixelSize: 12, color: Color.CYAN, outlineColor: Color.WHITE, outlineWidth: 2 }}
+            label={{
+              text: new ConstantProperty('UAV Launch Base'),
+              font: new ConstantProperty('bold 13px "Microsoft YaHei", sans-serif'),
+              fillColor: new ConstantProperty(Color.CYAN),
+              outlineColor: new ConstantProperty(Color.BLACK),
+              outlineWidth: new ConstantProperty(3),
+              disableDepthTestDistance: new ConstantProperty(Number.POSITIVE_INFINITY),
+            }}
+          />
+        )}
 
         {/* 所有航线 */}
         {routeData.map((rd) => (

@@ -30,6 +30,7 @@
 ```json
 {
   "name": "深圳无人机巡航演示",
+  "launchPoint": {"lng": 113.9325, "lat": 22.5317, "alt": 50},
   "drones": [
     {
       "id": "uav-001",
@@ -55,16 +56,16 @@
 [
   {
     "droneId": "uav-001",
-    "lng": 113.9301,
-    "lat": 22.5334,
-    "alt": 150,
+    "lng": 113.9325,
+    "lat": 22.5317,
+    "alt": 50,
     "heading": 145.2,
     "pitch": 0.31,
     "roll": -1.42,
     "speed": 7.65,
     "battery": 100,
     "timestamp": 1786593600,
-    "status": "flying",
+    "status": "staged",
     "waypointIndex": 0
   }
 ]
@@ -80,14 +81,14 @@
 | `speed` | number | 当前模拟速度，米/秒 |
 | `battery` | number | 模拟电量百分比 |
 | `timestamp` | integer | 状态生成时间，Unix 秒 |
-| `status` | string | 当前为 `flying` |
+| `status` | string | `staged`、`launching`、`flying`、`manual` 或 `returning` |
 | `waypointIndex` | integer | 当前航段起点索引 |
 
 ## WebSocket 遥测
 
 `GET /ws`
 
-握手成功后，服务按 `TICK_INTERVAL` 持续发送文本帧。每一帧都是与 `/api/state` 相同结构的完整 JSON 数组。客户端不需要发送消息。
+握手成功后，服务按 `TICK_INTERVAL` 持续发送文本帧。每一帧都是与 `/api/state` 相同结构的完整 JSON 数组。客户端可发送 `{"type":"launch","droneId":"uav-001"}` 单独放飞无人机，或发送 `{"type":"launch-all"}` 放飞所有待命无人机。放飞后无人机先飞往自己的航线首点，再沿既有航线巡航。
 
 浏览器示例：
 

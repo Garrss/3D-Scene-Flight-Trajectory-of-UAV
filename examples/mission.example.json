@@ -1,5 +1,6 @@
 {
   "name": "自定义单机任务",
+  "launchPoint": { "lng": 113.9325, "lat": 22.5317, "alt": 50 },
   "drones": [
     {
       "id": "uav-demo",

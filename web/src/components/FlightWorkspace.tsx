@@ -14,6 +14,7 @@ export default function FlightWorkspace() {
   }, [droneIds, selectedId])
 
   const selectedDrone = selectedId ? fleet[selectedId] ?? null : null
+  const stagedCount = droneIds.filter((id) => fleet[id]?.status === 'staged').length
   const heldKeys = useRef(new Set<string>())
   const [manual, setManual] = useState(false)
 
@@ -71,10 +72,23 @@ export default function FlightWorkspace() {
         mission={mission}
       />
       <div className="flight-mode-control">
-        <button onClick={toggleManual} disabled={!connected || !selectedId}>
-          {manual ? 'Return to route' : 'Manual control'}
-        </button>
-        <span>{manual ? 'Manual · arrows to fly' : selectedDrone?.mode === 'returning' ? 'Returning to route' : 'Auto route'}</span>
+        {selectedDrone?.status === 'staged' ? (
+          <button onClick={() => sendControl({ type: 'launch', droneId: selectedId })} disabled={!connected}>
+            Dispatch selected
+          </button>
+        ) : selectedDrone ? (
+          <button onClick={toggleManual} disabled={!connected || selectedDrone.status === 'launching'}>
+            {manual ? 'Return to route' : 'Manual control'}
+          </button>
+        ) : null}
+        {stagedCount > 0 && (
+          <button onClick={() => sendControl({ type: 'launch-all' })} disabled={!connected}>
+            Launch all ({stagedCount})
+          </button>
+        )}
+        <span>
+          {manual ? 'Manual · arrows to fly' : selectedDrone?.status === 'staged' ? 'At UAV launch base' : selectedDrone?.status === 'launching' ? 'Flying to assigned route' : selectedDrone?.mode === 'returning' ? 'Returning to route' : 'Auto route'}
+        </span>
       </div>
       <HUD
         droneState={selectedDrone}
